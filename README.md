@@ -13,7 +13,7 @@
 
 ## 새 PC 세팅 (1회)
 ```powershell
-git clone <이 레포 URL> $env:USERPROFILE\dotfiles
+git clone https://github.com/gggmlduswjs/dotfiles $env:USERPROFILE\dotfiles
 pwsh $env:USERPROFILE\dotfiles\install.ps1
 # 새 터미널 → dev bm 반품
 ```
