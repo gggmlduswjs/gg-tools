@@ -3,6 +3,7 @@
 #
 #   dev bm 반품   → bookmart 격리 worktree에서 claude 자동 시작
 #   dev cp 광고   → Coupang_v2 격리 worktree에서 claude 자동 시작
+#   dev r         → 모든 세션(메인+워크트리) 목록에서 골라 이어하기
 #   dev           → 사용법
 #   (이름 생략 시 자동 명명. 기존 worktree 이름이면 재사용.)
 #
@@ -34,7 +35,8 @@ function dev {
         else { Write-Warning "claude 못 찾음 — 수동: cd '$wt'; claude" }
       }
     }
-    default { Write-Host "사용: dev bm|cp [이름]   (bm=bookmart, cp=Coupang_v2)   |   devr = 세션 이어하기" }
+    { $_ -in 'r', 'resume' } { devr }   # dev r → 세션 목록에서 골라 이어하기
+    default { Write-Host "사용: dev bm|cp [이름]   |   dev r = 세션 이어하기   (bm=bookmart, cp=Coupang_v2)" }
   }
 }
 
