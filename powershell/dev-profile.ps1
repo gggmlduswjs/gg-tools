@@ -45,18 +45,24 @@ function devr {
   $root = Join-Path $env:USERPROFILE '.claude\projects'
   $rows = foreach ($d in Get-ChildItem $root -Directory | Where-Object Name -match 'bookmart|Coupang') {
     foreach ($f in Get-ChildItem $d.FullName -Filter *.jsonl -File) {
-      $sid = $cwd = $title = $null
+      $sid = $cwd = $title = $utext = $null
       foreach ($line in [System.IO.File]::ReadLines($f.FullName)) {   # 지연 읽기 — 필드 찾으면 즉시 중단
-        if ($line -notmatch '"(cwd|sessionId|summary)"') { continue }
+        if ($line -notmatch '"(cwd|sessionId|aiTitle|summary)"' -and $line -notmatch '"type":"user"') { continue }
         try { $o = $line | ConvertFrom-Json } catch { continue }
         if (-not $sid   -and $o.sessionId)          { $sid   = $o.sessionId }
         if (-not $cwd   -and $o.cwd)                { $cwd   = $o.cwd }
-        if (-not $title -and $o.type -eq 'summary') { $title = $o.summary }
+        if (-not $title -and $o.type -eq 'ai-title') { $title = $o.aiTitle }   # Claude Code 자동 제목
+        if (-not $title -and $o.type -eq 'summary')  { $title = $o.summary }
+        if (-not $utext -and $o.type -eq 'user') {                             # 폴백: 첫 사용자 메시지
+          $c = $o.message.content
+          $utext = if ($c -is [string]) { $c } else { ($c | Where-Object type -eq 'text' | Select-Object -First 1).text }
+        }
         if ($sid -and $cwd -and $title) { break }
       }
       if ($sid -and $cwd) {
-        [pscustomobject]@{ Time = $f.LastWriteTime; Cwd = $cwd; Sid = $sid
-          Title = ($title ?? (Split-Path $cwd -Leaf)) }
+        $t = ($title ?? $utext ?? (Split-Path $cwd -Leaf)) -replace '\s+', ' '
+        if ($t.Length -gt 50) { $t = $t.Substring(0, 50) + '…' }
+        [pscustomobject]@{ Time = $f.LastWriteTime; Cwd = $cwd; Sid = $sid; Title = $t.Trim() }
       }
     }
   }
@@ -64,7 +70,7 @@ function devr {
   if (-not $rows) { Write-Warning '세션 없음'; return }
   for ($i = 0; $i -lt $rows.Count; $i++) {
     $r = $rows[$i]
-    '{0,2}  {1:MM-dd HH:mm}  {2,-22}  {3}' -f ($i + 1), $r.Time, (Split-Path $r.Cwd -Leaf), $r.Title
+    '{0,2}  {1:MM-dd HH:mm}  {2,-24}  {3}' -f ($i + 1), $r.Time, (Split-Path $r.Cwd -Leaf), $r.Title
   }
   $pick = Read-Host "`n번호 (취소=Enter)"
   if (-not $pick) { return }
