@@ -34,6 +34,43 @@ function dev {
         else { Write-Warning "claude 못 찾음 — 수동: cd '$wt'; claude" }
       }
     }
-    default { Write-Host "사용: dev bm|cp [이름]   (bm=bookmart, cp=Coupang_v2)" }
+    default { Write-Host "사용: dev bm|cp [이름]   (bm=bookmart, cp=Coupang_v2)   |   devr = 세션 이어하기" }
   }
+}
+
+function devr {
+  # 모든 bookmart/Coupang 세션(메인+워크트리)을 한 목록에서 골라 resume.
+  # --resume은 현재 폴더 세션만 보여줘서, 워크트리 세션을 메인에서 못 봄 → 이걸로 통합.
+  param([int]$top = 20)
+  $root = Join-Path $env:USERPROFILE '.claude\projects'
+  $rows = foreach ($d in Get-ChildItem $root -Directory | Where-Object Name -match 'bookmart|Coupang') {
+    foreach ($f in Get-ChildItem $d.FullName -Filter *.jsonl -File) {
+      $sid = $cwd = $title = $null
+      foreach ($line in [System.IO.File]::ReadLines($f.FullName)) {   # 지연 읽기 — 필드 찾으면 즉시 중단
+        if ($line -notmatch '"(cwd|sessionId|summary)"') { continue }
+        try { $o = $line | ConvertFrom-Json } catch { continue }
+        if (-not $sid   -and $o.sessionId)          { $sid   = $o.sessionId }
+        if (-not $cwd   -and $o.cwd)                { $cwd   = $o.cwd }
+        if (-not $title -and $o.type -eq 'summary') { $title = $o.summary }
+        if ($sid -and $cwd -and $title) { break }
+      }
+      if ($sid -and $cwd) {
+        [pscustomobject]@{ Time = $f.LastWriteTime; Cwd = $cwd; Sid = $sid
+          Title = ($title ?? (Split-Path $cwd -Leaf)) }
+      }
+    }
+  }
+  $rows = @($rows | Sort-Object Time -Descending | Select-Object -First $top)
+  if (-not $rows) { Write-Warning '세션 없음'; return }
+  for ($i = 0; $i -lt $rows.Count; $i++) {
+    $r = $rows[$i]
+    '{0,2}  {1:MM-dd HH:mm}  {2,-22}  {3}' -f ($i + 1), $r.Time, (Split-Path $r.Cwd -Leaf), $r.Title
+  }
+  $pick = Read-Host "`n번호 (취소=Enter)"
+  if (-not $pick) { return }
+  $sel = $rows[[int]$pick - 1]
+  if (-not $sel) { Write-Warning '범위 밖 번호'; return }
+  if (-not (Test-Path $sel.Cwd)) { Write-Warning "폴더 없음(워크트리 삭제됨?): $($sel.Cwd)"; return }
+  Set-Location $sel.Cwd
+  claude --resume $sel.Sid
 }
