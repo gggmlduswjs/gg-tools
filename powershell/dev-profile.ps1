@@ -36,7 +36,8 @@ function dev {
       }
     }
     { $_ -in 'r', 'resume' } { devr }   # dev r → 세션 목록에서 골라 이어하기
-    default { Write-Host "사용: dev bm|cp [이름]   |   dev r = 세션 이어하기   (bm=bookmart, cp=Coupang_v2)" }
+    { $_ -in 'clean', 'c' }  { devclean $name }   # dev clean [bm|cp] → 머지된 워크트리 정리
+    default { Write-Host "사용: dev bm|cp [이름]   |   dev r = 세션 이어하기   |   dev clean [bm|cp] = 워크트리 정리   (bm=bookmart, cp=Coupang_v2)" }
   }
 }
 
@@ -81,4 +82,48 @@ function devr {
   if (-not (Test-Path $sel.Cwd)) { Write-Warning "폴더 없음(워크트리 삭제됨?): $($sel.Cwd)"; return }
   Set-Location $sel.Cwd
   claude --resume $sel.Sid
+}
+
+function devclean {
+  # 머지된 워크트리 자동 제거 + 찌꺼기 청소. 미머지/변경 있는 건 안 지우고 표시만.
+  # dev clean = bm,cp 둘 다 | dev clean bm = bookmart만 | dev clean cp = Coupang_v2만
+  param([string]$proj, [int]$staleDays = 14)
+  $roots = switch ($proj) {
+    'bm' { , $Global:BookmartRoot }
+    'cp' { , $Global:CoupangRoot }
+    default { $Global:BookmartRoot, $Global:CoupangRoot }
+  }
+  foreach ($root in $roots) {
+    if (-not (Test-Path (Join-Path $root '.git'))) { Write-Warning "git repo 없음: $root"; continue }
+    Write-Host "`n== $(Split-Path $root -Leaf) ==" -ForegroundColor Cyan
+    git -C $root worktree prune                                  # 폴더 없어진 등록 청소
+    $main = (git -C $root symbolic-ref --quiet --short refs/remotes/origin/HEAD 2>$null) -replace '^origin/', ''
+    if (-not $main) { git -C $root show-ref --verify --quiet refs/heads/main; $main = if ($LASTEXITCODE -eq 0) { 'main' } else { 'master' } }
+    $mainTop = (git -C $root rev-parse --show-toplevel) -replace '/', '\'
+
+    $items = @(); $wt = $null; $br = $null                       # --porcelain 파싱
+    foreach ($line in (git -C $root worktree list --porcelain)) {
+      if     ($line -like 'worktree *') { $wt = ($line.Substring(9) -replace '/', '\') }
+      elseif ($line -like 'branch *')   { $br = $line.Substring(7) -replace '^refs/heads/', '' }
+      elseif ($line -eq '')             { if ($wt) { $items += [pscustomobject]@{ Path = $wt; Branch = $br }; $wt = $null; $br = $null } }
+    }
+    if ($wt) { $items += [pscustomobject]@{ Path = $wt; Branch = $br } }
+
+    $removed = 0; $kept = 0
+    foreach ($it in $items) {
+      if ($it.Path -eq $mainTop -or $it.Branch -eq $main) { continue }   # 메인 워크트리는 건너뜀
+      $merged = git -C $root branch --merged $main --format='%(refname:short)' | Where-Object { $_ -eq $it.Branch }
+      if ($merged) {
+        $out = git -C $root worktree remove $it.Path 2>&1           # 변경 있으면 git이 알아서 거부(--force 안 씀)
+        if ($LASTEXITCODE -eq 0) { Write-Host "  제거 $($it.Path)  [$($it.Branch)]" -ForegroundColor Green; $removed++ }
+        else { Write-Host "  남김(변경 있음) $($it.Path)  — $($out -join ' ')" -ForegroundColor Yellow; $kept++ }
+      }
+      else {
+        $age = if (Test-Path $it.Path) { ((Get-Date) - (Get-Item $it.Path).LastWriteTime).Days } else { 0 }
+        $note = if ($age -ge $staleDays) { "미머지, ${age}일 방치 — 확인 후 수동 삭제" } else { '미머지' }
+        Write-Host "  남김($note) $($it.Path)  [$($it.Branch)]" -ForegroundColor DarkYellow; $kept++
+      }
+    }
+    Write-Host "  → 제거 $removed, 남김 $kept" -ForegroundColor Gray
+  }
 }
