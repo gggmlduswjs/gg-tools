@@ -96,7 +96,9 @@ function devclean {
   foreach ($root in $roots) {
     if (-not (Test-Path (Join-Path $root '.git'))) { Write-Warning "git repo 없음: $root"; continue }
     Write-Host "`n== $(Split-Path $root -Leaf) ==" -ForegroundColor Cyan
+    $nBefore = @(git -C $root worktree list --porcelain | Where-Object { $_ -like 'worktree *' }).Count
     git -C $root worktree prune                                  # 폴더 없어진 등록 청소
+    $pruned = $nBefore - @(git -C $root worktree list --porcelain | Where-Object { $_ -like 'worktree *' }).Count
     $main = (git -C $root symbolic-ref --quiet --short refs/remotes/origin/HEAD 2>$null) -replace '^origin/', ''
     if (-not $main) { git -C $root show-ref --verify --quiet refs/heads/main; $main = if ($LASTEXITCODE -eq 0) { 'main' } else { 'master' } }
     $mainTop = (git -C $root rev-parse --show-toplevel) -replace '/', '\'
@@ -124,6 +126,6 @@ function devclean {
         Write-Host "  남김($note) $($it.Path)  [$($it.Branch)]" -ForegroundColor DarkYellow; $kept++
       }
     }
-    Write-Host "  → 제거 $removed, 남김 $kept" -ForegroundColor Gray
+    Write-Host "  → prune $pruned, 제거 $removed, 남김 $kept" -ForegroundColor Gray
   }
 }
