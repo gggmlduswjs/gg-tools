@@ -89,7 +89,7 @@ function devr {
 function devclean {
   # 머지된 워크트리 자동 제거 + 찌꺼기 청소. 미머지/변경 있는 건 안 지우고 표시만.
   # dev clean = bm,cp 둘 다 | dev clean bm = bookmart만 | dev clean cp = Coupang_v2만
-  param([string]$proj, [int]$staleDays = 14)
+  param([string]$proj, [int]$staleDays = 14, [double]$activeHours = 12)
   $roots = switch ($proj) {
     'bm' { , $Global:BookmartRoot }
     'cp' { , $Global:CoupangRoot }
@@ -136,6 +136,19 @@ function devclean {
       if ($it.Path -eq $mainTop -or $it.Branch -eq $main) { continue }   # 메인 워크트리는 건너뜀
       $merged = git -C $root branch --merged $mainRef --format='%(refname:short)' | Where-Object { $_ -eq $it.Branch }
       if ($merged) {
+        # ★활동 게이트 — 머지되고 미커밋 0 이어도 '지금 쓰는 중' 이면 지우면 안 된다(작업 폴더가 사라진다).
+        #   · 폴더 mtime 금지: 하위 파일이 바뀌어도 부모는 안 변해 활성 세션을 오판한다.
+        #   · git status 보다 먼저 읽어야 한다: status 가 index 를 리프레시해 나이가 항상 0 이 된다.
+        #   · --absolute-git-dir: 메인 checkout 에서 --git-dir 은 상대경로('.git')를 반환한다.
+        #   · fail-closed: 나이를 못 구하면 지우지 않고 남긴다(옛 코드는 실패 시 0 으로 떨어져 삭제 쪽으로 기울었다).
+        $gitDir = git -C $it.Path rev-parse --absolute-git-dir 2>$null
+        $idx = if ($gitDir) { Join-Path ($gitDir -replace '/', '\') 'index' } else { $null }
+        $hrs = if ($idx -and (Test-Path $idx)) { ((Get-Date) - (Get-Item $idx).LastWriteTime).TotalHours } else { -1 }
+        if ($hrs -lt $activeHours) {
+          $why = if ($hrs -lt 0) { '나이 판정 불가' } else { '최근 활동 {0:N1}h' -f $hrs }
+          Write-Host "  남김($why) $($it.Path)  [$($it.Branch)]" -ForegroundColor DarkYellow; $kept++; continue
+        }
+
         # ⚠️ 반드시 remove 앞에. 쿠팡 wt.ps1 은 워크트리 .venv 를 본체로의 junction 으로 만든다
         # → 링크를 매단 채 폴더를 재귀 삭제하면 git 이 링크를 타고 들어가 **본체 .venv 를 파괴**한다
         # (2026-07-28 실측: Lib/ 전소. 북마트는 07-25 에 정션 생성을 아예 없애 같은 사고를 끝냈다).
