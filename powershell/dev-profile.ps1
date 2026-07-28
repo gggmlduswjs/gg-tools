@@ -21,6 +21,7 @@ function dev {
       if (-not $name) { $name = 's' + (Get-Date -Format 'MMddHHmm') }
       if (-not (Test-Path $Global:BookmartRoot)) { Write-Warning "bookmart 없음: $Global:BookmartRoot (필요시 `$env:DEV_PROJECTS 설정)"; return }
       Set-Location $Global:BookmartRoot
+      try { devclean bm } catch { Write-Warning "정리 건너뜀: $_" }   # 아래 'cp' 주석 참고
       & (Join-Path $Global:BookmartRoot '_scripts\bmwt.ps1') start $name   # 생성/재사용 + .venv/.env provision + claude
     }
     'cp' {
@@ -29,6 +30,11 @@ function dev {
       $siblings = Split-Path $Global:CoupangRoot -Parent
       $wt = Join-Path $siblings "Coupang_v2-wt\$name"
       Set-Location $Global:CoupangRoot
+      # ★정리는 사람이 기억해서 치는 명령이면 안 된다 — 안 치게 되고, 그래서 브랜치가 121개까지
+      # 쌓였다(2026-07-28). 새 작업 시작 시점이 가장 안전하다: 메인 체크아웃에 있고 어떤 워크트리에도
+      # 안 들어가 있어 Windows 잠김이 없다. 안전장치는 devclean 안에 있다(origin/main 기준 머지판정 ·
+      # 미커밋 있으면 남김 · 활동 12h 게이트 · 정션 폐지). 실패해도 작업 시작은 막지 않는다.
+      try { devclean cp } catch { Write-Warning "정리 건너뜀: $_" }
       if (-not (Test-Path $wt)) { & (Join-Path $Global:CoupangRoot 'wt.ps1') new $name }   # 쿠팡은 provision 안 함(설계상 .venv=메인)
       if (Test-Path $wt) {
         Set-Location $wt
