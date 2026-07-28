@@ -1,0 +1,82 @@
+{
+  "permissions": {
+    "allow": [],
+    "defaultMode": "auto"
+  },
+  "model": "opus[1m]",
+  "hooks": {
+    "SessionEnd": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "if ($PWD.Path -notmatch 'bookmart|Coupang_v2') { exit }; . 'C:\\Users\\user\\dotfiles\\powershell\\dev-profile.ps1'; devclean",
+            "shell": "powershell",
+            "timeout": 30,
+            "statusMessage": "dev clean: 머지된 워크트리 정리"
+          }
+        ]
+      }
+    ]
+  },
+  "statusLine": {
+    "type": "command",
+    "command": "npx -y ccstatusline@latest",
+    "padding": 0,
+    "refreshInterval": 10
+  },
+  "enabledPlugins": {
+    "frontend-design@claude-plugins-official": true,
+    "ponytail@ponytail": true,
+    "oh-my-mermaid@oh-my-mermaid": true,
+    "harness@harness-marketplace": false,
+    "claude-md-management@claude-plugins-official": true
+  },
+  "extraKnownMarketplaces": {
+    "claude-code-plugins": {
+      "source": {
+        "source": "github",
+        "repo": "anthropics/claude-code"
+      }
+    },
+    "ponytail": {
+      "source": {
+        "source": "github",
+        "repo": "DietrichGebert/ponytail"
+      }
+    },
+    "oh-my-mermaid": {
+      "source": {
+        "source": "github",
+        "repo": "oh-my-mermaid/oh-my-mermaid"
+      }
+    },
+    "harness-marketplace": {
+      "source": {
+        "source": "github",
+        "repo": "revfactory/harness"
+      }
+    },
+    "claude-plugins-official": {
+      "source": {
+        "source": "github",
+        "repo": "anthropics/claude-plugins-official"
+      }
+    }
+  },
+  "language": "korean",
+  "effortLevel": "high",
+  "autoUpdatesChannel": "latest",
+  "tui": "fullscreen",
+  "voice": {
+    "enabled": true,
+    "mode": "hold"
+  },
+  "skipDangerousModePermissionPrompt": true,
+  "skipWorkflowUsageWarning": true,
+  "autoCompactEnabled": true,
+  "remoteControlAtStartup": true,
+  "agentPushNotifEnabled": true,
+  "skipAutoPermissionPrompt": true,
+  "voiceEnabled": true
+}
