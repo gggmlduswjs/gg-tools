@@ -93,97 +93,29 @@ function devr {
 }
 
 function devclean {
-  # 머지된 워크트리 자동 제거 + 찌꺼기 청소. 미머지/변경 있는 건 안 지우고 표시만.
-  # dev clean = bm,cp 둘 다 | dev clean bm = bookmart만 | dev clean cp = Coupang_v2만
-  param([string]$proj, [int]$staleDays = 14, [double]$activeHours = 12)
-  $roots = switch ($proj) {
-    'bm' { , $Global:BookmartRoot }
-    'cp' { , $Global:CoupangRoot }
-    default { $Global:BookmartRoot, $Global:CoupangRoot }
+  # 머지된 워크트리·브랜치 정리. 판정과 삭제는 전부 **공용 엔진**(wt-engine.ps1)이 한다 —
+  # 예전엔 여기에 따로 구현돼 있어서 엔진만 아는 것(squash 머지 오판 → Get-BranchLanded)을
+  # 못 받았고, 엔진은 반대로 여기만 알던 브랜치 쓸기를 못 받았다(2026-07-28 통합).
+  # dev clean = bm,cp 둘 다 | dev clean bm|cp = 하나만.  뒤에 --now 붙이면 조용함게이트 무시.
+  param([string]$proj, [Parameter(ValueFromRemainingArguments = $true)]$extra)
+  $bmScript = Join-Path '_scripts' 'bmwt.ps1'
+  $targets = switch ($proj) {
+    'bm' { , @{ root = $Global:BookmartRoot; script = $bmScript } }
+    'cp' { , @{ root = $Global:CoupangRoot;  script = 'wt.ps1' } }
+    default {
+      @{ root = $Global:BookmartRoot; script = $bmScript },
+      @{ root = $Global:CoupangRoot;  script = 'wt.ps1' }
+    }
   }
-  foreach ($root in $roots) {
-    if (-not (Test-Path (Join-Path $root '.git'))) { Write-Warning "git repo 없음: $root"; continue }
-    Write-Host "`n== $(Split-Path $root -Leaf) ==" -ForegroundColor Cyan
-    $nBefore = @(git -C $root worktree list --porcelain | Where-Object { $_ -like 'worktree *' }).Count
-    git -C $root worktree prune                                  # 폴더 없어진 등록 청소
-    $pruned = $nBefore - @(git -C $root worktree list --porcelain | Where-Object { $_ -like 'worktree *' }).Count
-    $main = (git -C $root symbolic-ref --quiet --short refs/remotes/origin/HEAD 2>$null) -replace '^origin/', ''
-    if (-not $main) { git -C $root show-ref --verify --quiet refs/heads/main; $main = if ($LASTEXITCODE -eq 0) { 'main' } else { 'master' } }
-    $mainTop = (git -C $root rev-parse --show-toplevel) -replace '/', '\'
-
-    # ★머지 판정은 반드시 origin/$main 기준. 로컬 $main 은 pull 이 안 돼 상시 뒤처지고
-    # (2026-07-28 실측 10커밋), 그러면 실제로 머지된 브랜치가 전부 '미머지'로 보여
-    # **아무것도 정리되지 않는다** — 북마트 로컬 64·원격 111 누적의 진짜 원인.
-    git -C $root fetch origin $main -q --prune
-    $mainRef = "origin/$main"
-
-    $items = @(); $wt = $null; $br = $null                       # --porcelain 파싱
-    foreach ($line in (git -C $root worktree list --porcelain)) {
-      if     ($line -like 'worktree *') { $wt = ($line.Substring(9) -replace '/', '\') }
-      elseif ($line -like 'branch *')   { $br = $line.Substring(7) -replace '^refs/heads/', '' }
-      elseif ($line -eq '')             { if ($wt) { $items += [pscustomobject]@{ Path = $wt; Branch = $br }; $wt = $null; $br = $null } }
-    }
-    if ($wt) { $items += [pscustomobject]@{ Path = $wt; Branch = $br } }
-
-    # `branch -d` 는 upstream(origin/<브랜치>) 보다 앞서면 머지됐어도 거부한다 — 로컬에 merge 커밋이
-    # 더 쌓인 흔한 경우. origin/$main 의 조상임을 직접 확인했을 때만 -D 로 마무리한다(내용은 이미 landed).
-    $delBranch = {
-      param($b)
-      git -C $root branch -d $b 2>$null | Out-Null
-      if ($LASTEXITCODE -eq 0) { return $true }
-      git -C $root merge-base --is-ancestor $b $mainRef 2>$null
-      if ($LASTEXITCODE -ne 0) { return $false }                      # 조상 아님 = 진짜 미머지 → 남긴다
-      git -C $root branch -D $b 2>$null | Out-Null
-      return ($LASTEXITCODE -eq 0)
-    }
-
-    $removed = 0; $kept = 0
-    foreach ($it in $items) {
-      if ($it.Path -eq $mainTop -or $it.Branch -eq $main) { continue }   # 메인 워크트리는 건너뜀
-      $merged = git -C $root branch --merged $mainRef --format='%(refname:short)' | Where-Object { $_ -eq $it.Branch }
-      if ($merged) {
-        # ★활동 게이트 — 머지되고 미커밋 0 이어도 '지금 쓰는 중' 이면 지우면 안 된다(작업 폴더가 사라진다).
-        #   · 폴더 mtime 금지: 하위 파일이 바뀌어도 부모는 안 변해 활성 세션을 오판한다.
-        #   · git status 보다 먼저 읽어야 한다: status 가 index 를 리프레시해 나이가 항상 0 이 된다.
-        #   · --absolute-git-dir: 메인 checkout 에서 --git-dir 은 상대경로('.git')를 반환한다.
-        #   · fail-closed: 나이를 못 구하면 지우지 않고 남긴다(옛 코드는 실패 시 0 으로 떨어져 삭제 쪽으로 기울었다).
-        $gitDir = git -C $it.Path rev-parse --absolute-git-dir 2>$null
-        $idx = if ($gitDir) { Join-Path ($gitDir -replace '/', '\') 'index' } else { $null }
-        $hrs = if ($idx -and (Test-Path $idx)) { ((Get-Date) - (Get-Item $idx).LastWriteTime).TotalHours } else { -1 }
-        if ($hrs -lt $activeHours) {
-          $why = if ($hrs -lt 0) { '나이 판정 불가' } else { '최근 활동 {0:N1}h' -f $hrs }
-          Write-Host "  남김($why) $($it.Path)  [$($it.Branch)]" -ForegroundColor DarkYellow; $kept++; continue
-        }
-
-        # ⚠️ 반드시 remove 앞에. 쿠팡 wt.ps1 은 워크트리 .venv 를 본체로의 junction 으로 만든다
-        # → 링크를 매단 채 폴더를 재귀 삭제하면 git 이 링크를 타고 들어가 **본체 .venv 를 파괴**한다
-        # (2026-07-28 실측: Lib/ 전소. 북마트는 07-25 에 정션 생성을 아예 없애 같은 사고를 끝냈다).
-        # cmd rmdir = reparse point 만 제거하고 target 은 보존. Remove-Item 은 안으로 들어갈 위험이 있어 회피.
-        $venvDst = Join-Path $it.Path '.venv'
-        if (Test-Path $venvDst) { cmd /c rmdir "$venvDst" 2>$null | Out-Null }
-
-        $out = git -C $root worktree remove $it.Path 2>&1           # 변경 있으면 git이 알아서 거부(--force 안 씀)
-        if ($LASTEXITCODE -eq 0) {
-          & $delBranch $it.Branch | Out-Null                        # 폴더만 지우면 브랜치가 영원히 쌓인다
-          Write-Host "  제거 $($it.Path)  [$($it.Branch)]" -ForegroundColor Green; $removed++
-        }
-        else { Write-Host "  남김(변경 있음) $($it.Path)  — $($out -join ' ')" -ForegroundColor Yellow; $kept++ }
-      }
-      else {
-        $age = if (Test-Path $it.Path) { ((Get-Date) - (Get-Item $it.Path).LastWriteTime).Days } else { 0 }
-        $note = if ($age -ge $staleDays) { "미머지, ${age}일 방치 — 확인 후 수동 삭제" } else { '미머지' }
-        Write-Host "  남김($note) $($it.Path)  [$($it.Branch)]" -ForegroundColor DarkYellow; $kept++
-      }
-    }
-    # 워크트리는 이미 없는데 남아 있는 머지 브랜치 — 누적(로컬 64·원격 111, 2026-07-28 실측)의 본체.
-    # 위 루프는 '워크트리를 가진' 브랜치만 건드리므로 여기서 따로 쓸어야 한다. -d 라 미머지는 git 이 거부.
-    $live = @($items | ForEach-Object { $_.Branch })
-    $sweptBranches = 0
-    foreach ($b in (git -C $root branch --merged $mainRef --format='%(refname:short)')) {
-      if (-not $b -or $b -eq $main -or $live -contains $b) { continue }
-      if (& $delBranch $b) { $sweptBranches++ }
-    }
-    Write-Host "  → prune $pruned, 제거 $removed, 남김 $kept, 브랜치 정리 $sweptBranches" -ForegroundColor Gray
+  foreach ($t in $targets) {
+    if (-not (Test-Path (Join-Path $t.root '.git'))) { Write-Warning "git repo 없음: $($t.root)"; continue }
+    Write-Host ''
+    Write-Host "== $(Split-Path $t.root -Leaf) ==" -ForegroundColor Cyan
+    Push-Location $t.root
+    # --apply 고정: dev clean 은 '치워라'는 뜻이다(엔진 단독 호출은 dry-run 이 기본).
+    try { & (Join-Path $t.root $t.script) prune --apply @extra }
+    catch { Write-Warning "정리 실패: $_" }
+    finally { Pop-Location }
   }
 }
 
