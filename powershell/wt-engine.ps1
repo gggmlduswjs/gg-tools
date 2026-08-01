@@ -349,7 +349,13 @@ function Invoke-Prune($extra) {
     # ★SHA 를 먼저 찍는다 — 지운 걸 되살릴 수 있어야 한다:
     #   git branch <name> <sha>  ·  git push origin <sha>:refs/heads/<name>
     $sha = if ($w.branch) { Get-GitValue rev-parse --short=8 $w.branch } else { '' }
-    if ($w.branch) { Invoke-GitShow @('branch', '-D', $w.branch) | Out-Null }   # 배열 splat: 싱글대시 -D 가 파라미터로 파싱되는 것 방지
+    # ★main 은 지우지 않는다 — worktree 가 main 을 체크아웃한 채 방치되면 여기로 딸려 들어온다.
+    #   (2026-08-01 실측: `store-sale-apply` 가 main 을 물고 있어 **로컬 main 이 삭제**됐다.
+    #    origin/main 조상이라 잃은 커밋은 0 이었지만, 로컬 main 이 없으면 SessionStart 의
+    #    ff 훅이 침묵해 다음 세션들이 stale base 로 출발한다 — 쌍둥이 커밋의 뿌리다.)
+    #   아래 고아 쓸기에는 이미 같은 가드가 있었는데 이 줄만 빠져 있었다.
+    # 배열 splat: 싱글대시 -D 가 파라미터로 파싱되는 것 방지.
+    if ($w.branch -and $w.branch -ne $script:MainBr) { Invoke-GitShow @('branch', '-D', $w.branch) | Out-Null }
     Write-Host ("제거: {0}  [{1} {2}]  {3}" -f $w.path, ($w.branch ?? 'detached'), $sha, $x.note)
     $n++
   }
