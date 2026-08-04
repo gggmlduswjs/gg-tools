@@ -57,6 +57,18 @@ function Get-WorktreePath([string]$name, [string]$main) {
 
 function Get-BranchName([string]$name) { return "$($script:BranchPrefix)$name" }
 
+# 조회는 조립하지 말고 등록된 것에서 찾는다 — worktree 가 두 곳에 생기기 때문이다:
+#   · 이 엔진의 new/start  → ../<WtDir>/<name>
+#   · Claude Code 의 EnterWorktree → <repo>/.claude/worktrees/<name>
+# 조립 경로만 보던 clean 은 후자를 "없음"으로 거부했다(2026-08-04, 22/28 이 후자였다).
+# 생성(new)은 아직 없는 경로를 만들어야 하니 Get-WorktreePath 를 그대로 쓴다.
+function Resolve-WorktreePath([string]$name, [string]$main) {
+  $hit = @(Get-WorktreeEntries | Where-Object { (Split-Path $_.path -Leaf) -eq $name })
+  if ($hit.Count -eq 1) { return $hit[0].path }
+  if ($hit.Count -gt 1) { throw "이름 중복 — 경로로 지정하라:`n  " + (($hit | ForEach-Object { $_.path }) -join "`n  ") }
+  return (Get-WorktreePath $name $main)
+}
+
 # ★.venv 는 worktree 에 만들지 않는다 (bookmart 2026-07-25 · Coupang 2026-07-28).
 # 정션은 본체 .venv 로 가는 **문**이라, worktree 폴더를 재귀 삭제하면(git worktree remove ·
 # 탐색기 · Remove-Item 무엇이든) 삭제가 문을 따라 들어가 본체 .venv 를 파괴한다. 실사고 3회.
@@ -254,15 +266,19 @@ function Invoke-List {
 function Invoke-Clean([string]$name) {
   if (-not $name) { throw "이름 필요: clean <name>" }
   $main = Get-MainRoot
-  $wt   = Get-WorktreePath $name $main
+  $wt   = Resolve-WorktreePath $name $main
   if (-not (Test-Path $wt)) { throw "없음: $wt" }
+  # 브랜치도 조립하지 말고 실제로 체크아웃된 것을 쓴다 — worktree 이름과 브랜치명이
+  # 같다는 보장이 없다(EnterWorktree 로 만든 agent-desc 의 브랜치는 fix/agent-descriptions).
+  # remove 하면 목록에서 사라지므로 **먼저** 잡아둔다.
+  $entry = Get-WorktreeEntries | Where-Object { $_.path -eq ($wt -replace '\\', '/') } | Select-Object -First 1
+  $br    = if ($entry -and $entry.branch) { $entry.branch } else { Get-BranchName $name }
   Remove-LegacyLinks $wt                                   # ★반드시 remove 앞에
   foreach ($f in $script:Provision) { Remove-Item (Join-Path $wt $f) -ErrorAction SilentlyContinue }
   if ((Invoke-GitShow worktree remove $wt) -ne 0) {
     Write-Warning "worktree remove 거부 — --force 재시도"
     Invoke-Git worktree remove --force $wt
   }
-  $br = Get-BranchName $name
   # 브랜치를 안 지우면 영원히 쌓인다(2026-07-28: 로컬 74·원격 121). -d 라 미머지는 git 이 거부.
   if ((Invoke-GitShow @('branch', '-d', $br)) -ne 0) {
     Write-Host "제거됨: $wt  (브랜치 $br 은 미머지라 남김 — 확실하면 git branch -D $br)"
