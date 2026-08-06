@@ -119,6 +119,15 @@ function devclean {
   }
 }
 
+function 현황 {
+  # 이 폴더의 이해 아티팩트(파일트리·omm 뷰어·AI준비도·강의)를 브라우저 탭으로 연다.
+  # 인자 없으면 현재 폴더 — 하위 폴더에서 쳐도 스크립트가 git 루트로 올려잡는다.  현황 [-Proj <경로>]
+  # 런처는 .claude(로컬, 미동기) 에 있으므로 PC 따라 없을 수 있다.
+  $s = Join-Path $env:USERPROFILE '.claude\understand-any.ps1'
+  if (-not (Test-Path $s)) { Write-Warning "런처 없음: $s"; return }
+  & $s @args
+}
+
 function devharvest {
   # 현재 워크트리 작업을 PR로 main에 landed → 자동배포. 어느 프로젝트든 "지금 있는 폴더"의 repo 기준.
   # ★명시적 전용(자동 아님). 어느 단계든 실패하면 즉시 중단, 아무것도 안 밀어. rebase 충돌은 자동해결 안 함(수동).
