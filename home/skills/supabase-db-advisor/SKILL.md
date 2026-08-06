@@ -1,6 +1,6 @@
 ---
 name: supabase-db-advisor
-description: Supabase 데이터베이스를 MCP get_advisors(보안+성능)로 진단하고, 발견을 4-티어(🟢 안전 자동수정·🟡 판단 필요·⚙️ 설정(비SQL)·⚪ 유지 권장)로 분류해 정확한 수정 SQL과 함께 제안한다. 기본은 **제안만** — 사용자가 승인한 항목만 supabase/migrations 파일 기록 + MCP apply_migration으로 적용하고, 적용 후 advisor를 재실행해 해소를 검증한다. 보안 WARN 이상은 함수 본문·라우트·기존 마이그레이션까지 코드 교차분석해 의도를 판정한다. DROP·파괴적·비SQL 설정 항목은 승인해도 자동 적용하지 않고 수동 절차를 안내한다. "DB 진단", "DB 점검", "supabase advisor", "db 보안 점검", "db 성능 점검", "데이터베이스 어드바이저", "rls/인덱스 점검", "supabase 보안·성능 보고서", "디비 어드바이저 돌려줘" 같은 요청에 트리거. 불평·일상 표현도 같은 트리거다 — "DB 느려", "쿼리가 느려", "쿼리 최적화", "인덱스 봐줘", "인덱스 없나", "디비 왜 이렇게 느려", "RLS 확인해줘". **단 bookmart 레포에서는 이 스킬을 쓰지 않는다** — 거기선 프로젝트 스킬 `bookmart-db-advisor`가 정본이고, 적용 경로가 정반대다(MCP apply_migration 금지 · Django 마이그 파일 + git push origin main 만 허용). 산출물은 터미널 마크다운 + 라이트 테마 HTML 대시보드 + 구조화 JSON.
+description: Supabase DB 를 MCP get_advisors(보안+성능)로 진단하고 수정 SQL 과 함께 제안한다(적용은 승인 후). "DB 진단", "DB 점검", "supabase advisor", "db 보안 점검", "db 성능 점검", "데이터베이스 어드바이저", "rls/인덱스 점검", "supabase 보안·성능 보고서", "디비 어드바이저 돌려줘" 같은 요청에 트리거. 불평·일상 표현도 같은 트리거다 — "DB 느려", "쿼리가 느려", "쿼리 최적화", "인덱스 봐줘", "인덱스 없나", "디비 왜 이렇게 느려", "RLS 확인해줘". **단 bookmart 레포에서는 쓰지 않는다** — 거기선 프로젝트 스킬 `bookmart-db-advisor` 가 정본이다.
 user-invocable: true
 ---
 
