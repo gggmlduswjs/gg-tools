@@ -1,0 +1,33 @@
+{
+    // ── 탐색기 정리 (2026-08-06) ──────────────────────────────────────────────
+    // gitignore 는 커밋에서만 빼지 화면에서는 안 뺀다. 캐시·빌드·생성물을 여기서
+    // 숨긴다. 파일은 그대로 있고 Ctrl+P 로 열린다.
+    // 보이게 두는 것: src · tests · docs · alembic · .dev · .claude · .github
+    "files.exclude": {
+        "**/__pycache__": true,
+        ".gitattributes": true,
+        ".husky": true,
+        "alembic.ini": true,
+        "mkdocs.yml": true,
+        "pyrightconfig.json": true,
+        "pytest.ini": true,
+        "requirements.txt": true,
+        "requirements-local.txt": true,
+        "requirements-webapp.txt": true,
+        "WingKeepalive.spec": true,
+        "WingLogin.spec": true,
+        "hanjin_creds.json": true,
+        ".import_linter_cache": true,
+        ".omm": true,                // oh-my-mermaid 산출물 (현황 런처가 연다)
+        ".pytest_cache": true,
+        ".ruff_cache": true,
+        ".venv": true,
+        ".vscode": true,
+        "build": true,
+        "dist": true,
+        "out": true,
+        "coupang-course": true,      // codebase-to-course 산출물
+        "!지도.html": true,           // codebase-visualizer 산출물
+        "codebase-map.html": true
+    }
+}

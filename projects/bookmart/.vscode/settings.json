@@ -1,0 +1,37 @@
+{
+    // ── 탐색기 정리 (2026-08-06) ──────────────────────────────────────────────
+    // gitignore 는 커밋에서만 빼지 화면에서는 안 뺀다. 도구가 루트에 싸놓은 것과
+    // 생성물·런타임을 여기서 숨긴다. 파일은 그대로 있고 Ctrl+P 로 열린다.
+    // 보이게 두는 것: src · docs · _scripts · _design · .dev · .claude · .github
+    "files.exclude": {
+        "**/__pycache__": true,
+        ".gitattributes": true,
+        ".python-version": true,
+        "bookmart.code-workspace": true,
+        "requirements.txt": true,   // uv export 산출물
+        "uv.lock": true,
+        ".cursor-plugin": true,      // Cursor 플러그인 (씀 — 숨기기만)
+        ".omm": true,                // oh-my-mermaid 산출물 (현황 런처가 연다)
+        ".ruff_cache": true,
+        ".venv": true,
+        ".vscode": true,
+        "backups": true,             // DB 스냅샷 616MB
+        "bookmart-course": true,     // codebase-to-course 산출물
+        "logs": true,
+        "media": true,
+        "out": true,
+        "!지도.html": true,           // codebase-visualizer 산출물
+        "codebase-map.html": true,
+        "src_structure.md": true
+    },
+
+    "python.defaultInterpreterPath": "C:\\Users\\user\\AppData\\Local\\Microsoft\\WindowsApps\\PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0\\python.exe",
+    "python.analysis.extraPaths": [
+        "${workspaceFolder}"
+    ],
+    "python.analysis.typeCheckingMode": "off",
+    "python.analysis.diagnosticSeverityOverrides": {
+        "reportMissingImports": "none",
+        "reportMissingModuleSource": "none"
+    }
+}

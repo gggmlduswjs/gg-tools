@@ -71,7 +71,26 @@ Set-Copy (Join-Path $repo 'home\settings.json')       (Join-Path $dotcl 'setting
 Set-Copy (Join-Path $repo 'home\statusline.ps1')      (Join-Path $dotcl 'statusline.ps1')
 Set-Copy (Join-Path $repo 'home\understand-any.ps1')  (Join-Path $dotcl 'understand-any.ps1')
 
-# ── 3) 메모리 심링크 ────────────────────────────────────────────────────
+# ── 3) 프로젝트별 편집기 설정 ───────────────────────────────────────────
+# .vscode/ 는 두 레포 다 gitignore 라 PC 를 옮기면 사라진다. 그런데 files.exclude
+# (탐색기에서 캐시·빌드·생성물 숨기기)는 PC 마다 다시 만들 이유가 없는 설정이다.
+# 여기에 정본을 두고 배치한다. 기존 파일은 안 덮는다(그 PC 에서 손본 걸 날리면 안 된다).
+Write-Host "`n== 프로젝트 편집기 설정 ==" -Fore Cyan
+$base = if ($env:DEV_PROJECTS) { $env:DEV_PROJECTS } else { Join-Path $env:USERPROFILE 'Desktop' }
+$projSrc = Join-Path $repo 'projects'
+if (Test-Path $projSrc) {
+  foreach ($p in (Get-ChildItem $projSrc -Directory)) {
+    $dstRoot = Join-Path $base $p.Name
+    if (-not (Test-Path $dstRoot)) { Write-Host "  [skip] 레포 없음: $($p.Name)" -Fore Yellow; continue }
+    Write-Host "  $($p.Name)" -Fore DarkCyan
+    foreach ($f in (Get-ChildItem $p.FullName -Recurse -File)) {
+      $rel = $f.FullName.Substring($p.FullName.Length).TrimStart('\')
+      Set-Copy $f.FullName (Join-Path $dstRoot $rel)
+    }
+  }
+}
+
+# ── 4) 메모리 심링크 ────────────────────────────────────────────────────
 # 프로젝트별 memory 는 Drive 에 둔다 — 두 PC 가 각자 append 하는 누적물이라 git 이면 파일마다 충돌한다.
 # (워크트리 세션의 memory 는 settings.json 의 SessionStart 훅이 그때그때 걸어준다)
 Write-Host "`n== 메모리 ==" -Fore Cyan
@@ -89,7 +108,7 @@ if (Test-Path $sync) {
   Write-Host "  [skip] Drive 없음: $sync (동기화 완료 후 다시 실행)" -Fore Yellow
 }
 
-# ── 4) 검증 ─────────────────────────────────────────────────────────────
+# ── 5) 검증 ─────────────────────────────────────────────────────────────
 # 기댓값을 숫자로 박아두면 메모리가 늘 때마다 낡아서 '성공'을 '실패'로 읽는다
 # (실제로 279/148 로 박아둔 게 404/220 이 됐다). Drive 원본과 대조하면 안 낡는다.
 Write-Host "`n== 검증 ==" -Fore Cyan
