@@ -181,12 +181,26 @@ $cnt = (Get-ChildItem "$dotcl\skills" -Directory -EA SilentlyContinue | Where-Ob
 Write-Host ("  {0,-12} {1}종 (forge — 나머지는 plugin)" -f 'skills', $cnt)
 # plugin 이 실제로 깔렸는지 — 여기가 비면 스킬 22종이 통째로 없는 것이다.
 # **이 확인이 없으면 "install 성공"이 스킬 없는 환경을 초록으로 덮는다.**
-$pl = Get-ChildItem "$dotcl\plugins\cache" -Recurse -Depth 3 -Filter 'plugin.json' -EA SilentlyContinue |
-      Where-Object { (Get-Content $_.FullName -Raw) -match '"name"\s*:\s*"gg-harness"' }
-if ($pl) {
-  Write-Host ("  {0,-12} OK" -f 'plugin') -Fore Green
+# 캐시 폴더를 뒤지지 않는다 — 실제 경로가 `cache\gg-harness\gg-harness\1.0.0\...` 라
+# 깊이를 잘못 잡으면 깔려 있는데 X 가 뜬다(2026-08-06 실측). 정본은 installed_plugins.json.
+$scopes = @()
+$reg = Join-Path $dotcl 'plugins\installed_plugins.json'
+if (Test-Path $reg) {
+  $j = Get-Content $reg -Raw | ConvertFrom-Json
+  $e = $j.plugins.'gg-harness@gg-harness'
+  if ($e) { $scopes = @($e | ForEach-Object { $_.scope }) }
+}
+if ($scopes -contains 'user') {
+  Write-Host ("  {0,-12} OK (user)" -f 'plugin') -Fore Green
+} elseif ($scopes.Count -gt 0) {
+  # ⚠️ project 스코프면 **그 폴더에서만** 뜬다. bookmart·Coupang 세션에선 스킬이 통째로 없다.
+  Write-Host ("  {0,-12} △ scope={1} — 이 폴더에서만 유효하다" -f 'plugin', ($scopes -join ',')) -Fore Yellow
+  Write-Host "                 /plugin 메뉴에서 user(모든 프로젝트) 로 다시 설치" -Fore Yellow
+  $ok = $false
 } else {
-  Write-Host ("  {0,-12} X  → Claude Code 에서 /plugin install gggmlduswjs/claude" -f 'plugin') -Fore Red
+  Write-Host ("  {0,-12} X  → Claude Code 에서 아래 두 줄 (한 줄씩 따로)" -f 'plugin') -Fore Red
+  Write-Host "                 /plugin marketplace add gggmlduswjs/claude" -Fore Red
+  Write-Host "                 /plugin install gg-harness@gg-harness" -Fore Red
   $ok = $false
 }
 if (Test-Path $sync) {
