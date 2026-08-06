@@ -5,18 +5,27 @@ Claude Code 설정 **정본**. 여러 PC(회사·집)에서 공유한다 — 한
 > 예전엔 설정이 네 곳에 흩어져 같은 파일이 서로 다른 버전으로 갈렸다(`CLAUDE.md` 가 3,543B / 7,217B 두 벌).
 > 지금은 **여기가 유일한 정본**이고, `install.ps1` 이 각 자리에 꽂는다.
 
-## 새 PC (3줄)
+## 새 PC
 
 ```powershell
 gh auth login                                              # private 레포라 인증 먼저
 gh repo clone gggmlduswjs/claude $env:USERPROFILE\claude
 pwsh $env:USERPROFILE\claude\install.ps1                   # CLAUDE.md·프로필·훅·메모리·forge
-# 새 터미널 → Claude Code 안에서:
-#   /plugin install gggmlduswjs/claude                    ← 스킬 22종
 # 그다음 dev bm 반품
 ```
 
-`install.ps1` 은 마지막에 plugin 설치 여부까지 검증한다 — 빨간 X 가 뜨면 위 한 줄을 안 친 것이다.
+Claude Code 안에서 **두 줄**(순서 중요 — marketplace 를 먼저 등록해야 한다):
+
+```
+/plugin marketplace add gggmlduswjs/claude
+/plugin install gg-harness@gg-harness
+```
+
+⚠️ `/plugin install gggmlduswjs/claude` 는 **안 된다** — `Marketplace not found` 가 난다.
+이 레포는 marketplace 이자 plugin 이라(`marketplace.json` 의 `source: "./"`),
+등록과 설치가 별개 단계다.
+
+`install.ps1` 은 마지막에 plugin 설치 여부까지 검증한다 — 빨간 X 가 뜨면 위 두 줄을 안 친 것이다.
 
 그다음 **[새PC.md](새PC.md)** — 여기까진 5분이고, 진짜 시간은 `.env` 값과 CDP 로그인 6계정에서 든다.
 
@@ -45,7 +54,7 @@ Claude Code 는 `~/.claude/CLAUDE.md` 같은 **정해진 자리만** 보고, 거
 
 | | plugin | install.ps1 |
 |---|---|---|
-| 스킬 22종 | ✅ `/plugin install` | — |
+| 스킬 22종 | ✅ `/plugin install gg-harness@gg-harness` | — |
 | forge 스킬 4종 | ✕ (별도 레포·gitignore) | ✅ junction |
 | `CLAUDE.md` · `agents/` | ✕ | ✅ 심링크 |
 | `settings.json` · `statusline.ps1` | ✕ | ✅ 복사 |
@@ -68,6 +77,7 @@ plugin 규약은 `skills/`·`commands/` 가 **레포 루트**에 있어야 하�
 - `hooks/tdd_guard.py` — TDD 가드 **공용 엔진**(2026-08-06). 각 레포 `.claude/hooks/tdd_guard.py` 는 환경변수 둘(`TDD_GUARDED`·`TDD_TESTS`)만 정하는 shim 이다. wt-engine 과 같은 배선 — 로직이 한 벌이라 한쪽에서 고친 오탐이 반대편에도 간다. 엔진이 없는 PC 에서는 조용히 통과한다(가드가 작업을 막으면 안 된다)
 - `skills/` — **plugin 이 나르는 스킬 22종.** 루트에 있어야 plugin 규약이 인식한다. 등록 대조는 `skills/README.md` ↔ 폴더 이름을 pre-commit 이 본다
 - `.claude-plugin/plugin.json` — plugin 메타데이터. `name` 은 `gg-harness`
+- `.claude-plugin/marketplace.json` — **이 레포를 marketplace 로도 등록**한다(`source: "./"`). 이게 없으면 `/plugin install` 이 `Marketplace not found` 로 튕긴다 — 2026-08-06 실제로 튕겼다
 - `home/` — plugin 이 못 나르는 것들(`CLAUDE.md` · `settings.json` · `agents/`). `install.ps1` 이 `~/.claude` 로 꽂는다
 - `projects/<레포>/` — 그 레포 폴더로 배치되는 것. 지금은 `.vscode/settings.json`(탐색기 `files.exclude`)뿐이다. **`.vscode/` 는 두 레포 다 gitignore 라 PC 를 옮기면 사라지는데**, 캐시·빌드·생성물을 숨기는 설정은 PC 마다 다시 만들 이유가 없어서 정본을 여기 둔다
 - `scripts/skill_hitrate.py` — 세션 로그에서 스킬·에이전트 실제 호출 횟수를 센다. 보유 자산이 매 세션 내는 비용(description) 대비 얼마나 불리는지 재는 용도
