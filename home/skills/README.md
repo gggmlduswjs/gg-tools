@@ -1,25 +1,29 @@
 # claude-skills
 
-전역 스킬 모음 (`~/.claude/skills/`). 이 레포가 곧 스킬 디렉터리라 **clone 하면 바로 로드된다.**
+전역 스킬 모음. `claude` 레포의 `home/skills/` 가 정본이고 `~/.claude/skills/` 는 그걸 가리키는
+**심링크**라, 여기서 고치면 곧바로 반영된다(재설치·재시작 없음).
 
 스킬은 평소 **description 만** 컨텍스트에 올라가고(~100B), 호출될 때 본문이 로드된다.
-그래서 22개가 있어도 평소 부담은 거의 없다 — 다만 **뭐가 뭔지 모르면 안 쓰게 되므로** 이 지도가 있다.
+그래서 26개가 있어도 평소 부담은 거의 없다 — 다만 **뭐가 뭔지 모르면 안 쓰게 되므로** 이 지도가 있다.
 
 ---
 
 
-## 설치 (플러그인)
+## 새 PC 에서
 
 ```
-/plugin marketplace add gggmlduswjs/claude-skills
-/plugin install claude-skills@claude-skills-marketplace
+git clone https://github.com/gggmlduswjs/claude.git $HOME\claude
+pwsh $HOME\claude\install.ps1
 ```
 
-설치하면 스킬이 `/claude-skills:<이름>` 으로 붙는다(플러그인 스킬은 항상 네임스페이스가 붙는다).
+스킬만 따로 설치하지 않는다 — `install.ps1` 이 CLAUDE.md·훅·PowerShell 함수까지 같이 배치한다.
 
-이 레포를 `~/.claude/skills/` 에 직접 clone 해서 쓰는 기존 방식도 그대로 유효하다 —
-스킬 폴더를 최상위에 둔 채 `.claude-plugin/plugin.json` 의 `skills` 배열로 경로만 선언했기 때문에,
-**둘 중 어느 쪽으로 써도 같은 파일을 본다.**
+> **`/plugin` 으로 안 쓰는 이유** — 플러그인은 clone 된 캐시를 보므로 고칠 때마다 push + update 가
+> 필요하고, 스킬 이름에 `claude-skills:` 네임스페이스가 붙어 호출 방식이 달라진다. 그리고 플러그인은
+> skills·commands·agents·hooks·mcp 만 배치할 수 있어 CLAUDE.md·settings.json·statusline 은 어차피
+> `install.ps1` 이 해야 한다. **경로를 둘로 늘려서 얻는 게 없다.**
+> (2026-08-06: 매니페스트 2개를 만들어만 두고 한 번도 설치하지 않은 채 archived 레포를 가리키고
+> 있어서 지웠다.)
 
 ## 🔍 진단 — 지금 상태가 어떤지 볼 때
 
@@ -32,6 +36,18 @@
 
 > **ai-readiness vs harness-audit** — 앞은 *코드베이스*가 읽기 좋은지(정량 점수), 뒤는 *환경*이 갖춰졌는지(빈 칸 찾기).
 > harness-audit 은 구조·맥락 점수를 ai-readiness 에 위임한다. 둘 다 필요하면 ai-readiness 먼저.
+
+### forge — 코드베이스를 「판」으로 놓고 보기
+
+| 스킬 | 뭘 하나 | 산출물 |
+|---|---|---|
+| **arch-forge** | C4 L1~L3 + Clean Architecture 링 + 지표 트리 + 결정 이력 | `docs/forge/arch/board.html` |
+| **backend-forge** | URL → View → Service → Model 을 **AST 로 실측**한 노선도 | `endpoints.json` 정본 + `routes.html` |
+| **frontend-forge** | 「한 가지 일에 화면이 몇 개 필요한가」 업무 묶음 판 (before/after) | `docs/forge/frontend/` |
+| **forge-loop** | 위 판들이 **실제 코드를 재고 있는지** 지키는 루프(골든 대조·drift) | 판정 리포트 |
+
+> 이 4개만 **본체가 `Desktop/forge` 레포에 있고 여기엔 심링크**다(작업 산출물이 커서 분리).
+> 그래서 `claude` 레포를 clone 해도 이 넷은 따라오지 않는다 — forge 레포를 따로 받아야 한다.
 
 ## 📋 계획 — 짓기 전에
 
@@ -113,4 +129,5 @@
 
 - **하네스 Eval** — 스킬을 고쳤을 때 회귀했는지 재는 golden set 루프. (bookmart 는 `.dev/harness/evals/` 로 손수 구현돼 있음)
 - **Alert as Code** — 대시보드 클릭으로 만든 설정은 에이전트가 못 고친다.
-- **플러그인 패키징** — `/plugin install` 한 줄 배포. 지금은 clone 방식. 상세는 `harness-audit/references/course-map.md`.
+
+(**플러그인 패키징**은 「안 만든 것」이 아니라 **안 하기로 한 것**이다 — 위 「새 PC 에서」 참조.)

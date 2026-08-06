@@ -108,6 +108,11 @@ if (Test-Path $sync) {
   Write-Host "  [skip] Drive 없음: $sync (동기화 완료 후 다시 실행)" -Fore Yellow
 }
 
+# ── 4.5) git 훅 배선 ────────────────────────────────────────────────────
+# .git/hooks 는 clone 에 따라오지 않는다 — 레포에 든 .githooks 를 가리켜야 새 PC 에서도 산다.
+git -C $repo config core.hooksPath .githooks 2>$null
+Write-Host "  [ok]   git hooks -> .githooks" -Fore DarkGray
+
 # ── 5) 검증 ─────────────────────────────────────────────────────────────
 # 기댓값을 숫자로 박아두면 메모리가 늘 때마다 낡아서 '성공'을 '실패'로 읽는다
 # (실제로 279/148 로 박아둔 게 404/220 이 됐다). Drive 원본과 대조하면 안 낡는다.
@@ -121,7 +126,7 @@ foreach ($n in 'CLAUDE.md', 'skills') {          # 필수
 # agents 는 선택 — 레포에 아직 없으면 실패가 아니다
 $agentSrc = Join-Path $repo 'home\agents'
 Write-Host ("  {0,-12} {1}" -f 'agents', $(if (Test-Path $agentSrc) { 'OK' } else { '— (레포에 없음)' })) -Fore DarkGray
-# .claude-plugin 같은 점폴더는 스킬이 아니다
+# 점폴더는 스킬이 아니다(.git 등). 필터를 빼면 개수가 실제보다 크게 나온다
 $cnt = (Get-ChildItem "$dotcl\skills" -Directory -EA SilentlyContinue | Where-Object Name -notlike '.*').Count
 Write-Host ("  {0,-12} {1}종" -f 'skills', $cnt)
 if (Test-Path $sync) {
