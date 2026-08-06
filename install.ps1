@@ -3,7 +3,7 @@
 #   -Force = 이미 있는 ~\.claude 파일도 덮어씀(기본은 안 건드림 — 그 PC 설정을 날리지 않는다)
 #
 # 무엇을 어떻게 배치하나:
-#   plugin = 스킬 23종. `/plugin install gggmlduswjs/claude` 로 받는다 — 이 스크립트가 아니다.
+#   plugin = 스킬 22종. `/plugin install gggmlduswjs/claude` 로 받는다 — 이 스크립트가 아니다.
 #   심링크 = 한 벌만 존재해야 하는 것(CLAUDE.md·agents) + forge 스킬 4종(별도 레포).
 #   복사   = Claude Code 가 자주 덮어쓰거나 PC 마다 달라야 하는 것(settings.json 의
 #            permissions.allow 는 경로별). 심링크면 레포가 늘 dirty 하고 PC 끼리 충돌한다.
@@ -179,7 +179,7 @@ Write-Host ("  {0,-12} {1}" -f 'agents', $(if (Test-Path $agentSrc) { 'OK' } els
 # 점폴더는 스킬이 아니다(.git 등). 필터를 빼면 개수가 실제보다 크게 나온다
 $cnt = (Get-ChildItem "$dotcl\skills" -Directory -EA SilentlyContinue | Where-Object Name -notlike '.*').Count
 Write-Host ("  {0,-12} {1}종 (forge — 나머지는 plugin)" -f 'skills', $cnt)
-# plugin 이 실제로 깔렸는지 — 여기가 비면 스킬 23종이 통째로 없는 것이다.
+# plugin 이 실제로 깔렸는지 — 여기가 비면 스킬 22종이 통째로 없는 것이다.
 # **이 확인이 없으면 "install 성공"이 스킬 없는 환경을 초록으로 덮는다.**
 $pl = Get-ChildItem "$dotcl\plugins\cache" -Recurse -Depth 3 -Filter 'plugin.json' -EA SilentlyContinue |
       Where-Object { (Get-Content $_.FullName -Raw) -match '"name"\s*:\s*"gg-harness"' }
