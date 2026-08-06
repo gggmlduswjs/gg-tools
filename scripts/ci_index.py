@@ -80,6 +80,11 @@ def parse(text, fallback_name):
     title = m.group(1).strip() if m else fallback_name
     title = re.sub(r"\s+", " ", title)[:90]
     st = RE_STATE.search(text)
+    # 템플릿은 안에 `> 상태: 진행` 이 예시로 박혀 있다. 그대로 두면 「진행 중인 계획」을
+    # 셀 때마다 4건이 더해진다(실측: `_template.md` 3개 + `_템플릿.md` 1개).
+    # 빼지는 않는다 — 새 계획을 쓸 때 찾아야 하는 문서다.
+    if re.search(r"(?i)(template|템플릿)", fallback_name):
+        return title, "템플릿", ""
     # 갱신 우선 — 작성일만 보면 꾸준히 고치는 문서가 낡은 걸로 보인다(2026-08-06 실측 오탐).
     d = RE_UPDATED.search(text) or RE_WRITTEN.search(text)
     return title, (st.group(1) if st else ""), (d.group(1) if d else "")
@@ -225,6 +230,13 @@ def selftest():
     # 상태는 줄 맨 앞 `>` 만 — 본문 중간의 "상태:" 를 주우면 안 된다
     _, s, _ = parse("내용 중 상태: 폐기 라고 적힘\n", "fb")
     assert s == "", s
+    # 템플릿의 예시 상태를 진짜 상태로 세지 않는다
+    _, s, d = parse("# [기능명] 구현 계획\n> 상태: 진행 · 갱신: 2026-07-28\n", "_template")
+    assert (s, d) == ("템플릿", ""), (s, d)
+    _, s, _ = parse("> 상태: 진행\n", "_템플릿")
+    assert s == "템플릿", s
+    _, s, _ = parse("> 상태: 진행\n", "재고원장_도입_plan")   # 보통 문서는 그대로
+    assert s == "진행", s
 
     # 필터 — 322건을 잘못 먹었던 자리다. 되돌아가지 않게 양쪽을 다 박아둔다.
     assert skip((".dev", "plans", "_archive", "a.md"), ".dev/plans")
