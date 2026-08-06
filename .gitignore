@@ -1,2 +1,16 @@
 .venv/
 *.local.ps1
+
+# ── home/skills ──────────────────────────────────────────────
+__pycache__/
+*.pyc
+node_modules/
+dist/
+.DS_Store
+Thumbs.db
+
+# forge 레포(Desktop/forge)로 심링크된 스킬 — 정본은 그쪽
+home/skills/arch-forge
+home/skills/backend-forge
+home/skills/forge-loop
+home/skills/frontend-forge
