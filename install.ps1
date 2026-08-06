@@ -109,9 +109,19 @@ if (Test-Path $sync) {
 }
 
 # ── 4.5) git 훅 배선 ────────────────────────────────────────────────────
-# .git/hooks 는 clone 에 따라오지 않는다 — 레포에 든 .githooks 를 가리켜야 새 PC 에서도 산다.
+# .git/hooks 는 clone 에 따라오지 않는다 — 레포에 든 폴더를 가리켜야 새 PC 에서도 산다.
 git -C $repo config core.hooksPath .githooks 2>$null
 Write-Host "  [ok]   git hooks -> .githooks" -Fore DarkGray
+
+# 코드 레포 둘도 같이 건다. **여기가 비어 있어서 새 PC 에 clone 하면 훅이 통째로 안 돌았다**
+# (2026-08-06 발견). 이 레포는 `.githooks/`, 코드 레포는 `.claude/hooks/` 다 — 이 레포엔
+# `.claude/` 폴더가 없다(자기가 그 내용물이라). 구조가 달라서 이름이 갈린 것뿐이다.
+foreach ($p in @('bookmart', 'Coupang_v2')) {
+  $pr = Join-Path $base $p
+  if (-not (Test-Path (Join-Path $pr '.git'))) { continue }
+  git -C $pr config core.hooksPath .claude/hooks 2>$null
+  Write-Host "  [ok]   git hooks -> $p/.claude/hooks" -Fore DarkGray
+}
 
 # ── 5) 검증 ─────────────────────────────────────────────────────────────
 # 기댓값을 숫자로 박아두면 메모리가 늘 때마다 낡아서 '성공'을 '실패'로 읽는다
