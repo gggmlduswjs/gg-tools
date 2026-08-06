@@ -14,6 +14,12 @@
             "shell": "powershell",
             "timeout": 15,
             "statusMessage": "memory 심링크: 워크트리 세션도 Drive 공용 메모리로"
+          },
+          {
+            "type": "command",
+            "command": "python \"$HOME/claude/scripts/token_cost.py\" --gate",
+            "timeout": 20,
+            "statusMessage": "토큰 효율 점검 (하루 1회)"
           }
         ]
       }
