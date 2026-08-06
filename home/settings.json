@@ -5,12 +5,25 @@
   },
   "model": "opus[1m]",
   "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "try{$p=$PWD.Path; if($p -notmatch 'bookmart|Coupang_v2'){exit}; $t=if($p -match 'Coupang_v2'){'coupang-v2-memory'}else{'bookmart-memory'}; $m=\"$env:USERPROFILE\\.claude\\projects\\$($p -replace '[^a-zA-Z0-9-]','-')\\memory\"; if(Test-Path $m){exit}; New-Item -ItemType Directory -Force (Split-Path $m)|Out-Null; New-Item -ItemType SymbolicLink -Path $m -Target \"G:\\내 드라이브\\claude-sync\\$t\"|Out-Null}catch{}",
+            "shell": "powershell",
+            "timeout": 15,
+            "statusMessage": "memory 심링크: 워크트리 세션도 Drive 공용 메모리로"
+          }
+        ]
+      }
+    ],
     "SessionEnd": [
       {
         "hooks": [
           {
             "type": "command",
-            "command": "if ($PWD.Path -notmatch 'bookmart|Coupang_v2') { exit }; . 'C:\\Users\\user\\dotfiles\\powershell\\dev-profile.ps1'; devclean",
+            "command": "if ($PWD.Path -notmatch 'bookmart|Coupang_v2') { exit }; . \"$env:USERPROFILE\\dotfiles\\powershell\\dev-profile.ps1\"; devclean",
             "shell": "powershell",
             "timeout": 30,
             "statusMessage": "dev clean: 머지된 워크트리 정리"
@@ -26,11 +39,11 @@
     "refreshInterval": 10
   },
   "enabledPlugins": {
-    "frontend-design@claude-plugins-official": true,
+    "frontend-design@claude-plugins-official": false,
     "ponytail@ponytail": true,
-    "oh-my-mermaid@oh-my-mermaid": true,
+    "oh-my-mermaid@oh-my-mermaid": false,
     "harness@harness-marketplace": false,
-    "claude-md-management@claude-plugins-official": true
+    "claude-md-management@claude-plugins-official": false
   },
   "extraKnownMarketplaces": {
     "claude-code-plugins": {
@@ -64,6 +77,9 @@
       }
     }
   },
+  "worktree": {
+    "baseRef": "head"
+  },
   "language": "korean",
   "effortLevel": "high",
   "autoUpdatesChannel": "latest",
@@ -78,5 +94,6 @@
   "remoteControlAtStartup": true,
   "agentPushNotifEnabled": true,
   "skipAutoPermissionPrompt": true,
-  "voiceEnabled": true
+  "voiceEnabled": true,
+  "cleanupPeriodDays": 14
 }

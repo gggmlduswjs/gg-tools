@@ -1,36 +1,67 @@
-# dotfiles
+# claude
 
-여러 PC(회사·집)에서 공유하는 개인 개발 설정. **한 PC에서 고치고 push → 다른 PC에서 pull** 하면 반영.
+Claude Code 설정 **정본**. 여러 PC(회사·집)에서 공유한다 — 한 PC에서 고치고 push → 다른 PC에서 pull.
 
-프로젝트별 스크립트(빌드/테스트/워크트리)는 각 프로젝트 레포에 있고, 여기엔 **프로젝트를 가로지르는 개인 도구**만 둔다.
+> 예전엔 설정이 네 곳에 흩어져 같은 파일이 서로 다른 버전으로 갈렸다(`CLAUDE.md` 가 3,543B / 7,217B 두 벌).
+> 지금은 **여기가 유일한 정본**이고, `install.ps1` 이 각 자리에 꽂는다.
 
-## 내용
-- `powershell/dev-profile.ps1` — 프로젝트 세션 격리 통일 런처 `dev`.
-  - `dev bm <이름>` → bookmart 격리 worktree에서 claude (`bookmart/_scripts/bmwt.ps1 start`)
-  - `dev cp <이름>` → Coupang_v2 격리 worktree에서 claude (`Coupang_v2/wt.ps1 new`)
-  - `dev` → 사용법. 이름 생략 시 자동 명명.
-- `powershell/wt-engine.ps1` — worktree lifecycle **공용 엔진**. bookmart `bmwt.ps1` ·
-  Coupang `wt.ps1` · `devclean` 이 전부 이걸 부른다(2026-07-28 3벌 → 1벌 통합).
-- `claude/` — `~\.claude` 의 손으로 쓴 설정 백업(`CLAUDE.md` · `settings.json` ·
-  `commands/` · `statusline.ps1`). 여기 없으면 디스크가 죽을 때 같이 사라진다.
-  `settings.json` 의 `permissions.allow` 는 지난 세션 스크래치패드 경로라 비워서 담는다.
-- `install.ps1` — 프로필에 dev 런처 배선 + `claude/` 배치(idempotent).
-- `북마크_레포.md` — 포크 대신 Star 로 돌린 남의 레포 색인(복구용).
-- `새PC.md` — **git 이 못 옮기는 것**(`.env` · `.venv` · CDP 로그인 크롬) 체크리스트.
+## 새 PC (2줄)
 
-## 새 PC 세팅 (1회)
 ```powershell
-git clone https://github.com/gggmlduswjs/dotfiles $env:USERPROFILE\dotfiles
-pwsh $env:USERPROFILE\dotfiles\install.ps1
+gh auth login                                              # private 레포라 인증 먼저
+gh repo clone gggmlduswjs/claude $env:USERPROFILE\claude
+pwsh $env:USERPROFILE\claude\install.ps1                   # 나머지 전부
 # 새 터미널 → dev bm 반품
 ```
-그다음 **`새PC.md`** — 여기까진 5분이고, 진짜 시간은 `.env` 값과 CDP 로그인 6계정에서 든다.
 
-`install.ps1` 은 **없는 파일만** 채운다(그 PC에서 손본 설정을 조용히 덮지 않는다). 덮으려면 `-Force`.
+그다음 **[새PC.md](새PC.md)** — 여기까진 5분이고, 진짜 시간은 `.env` 값과 CDP 로그인 6계정에서 든다.
 
-## 이후
-- `dev` 고칠 일: `powershell/dev-profile.ps1` 수정 → commit/push. 다른 PC는 `git pull`만.
+## 무엇이 어디에
+
+| | 무엇 | 왜 |
+|---|---|---|
+| **이 레포** | `home/CLAUDE.md` · `home/skills/` · `home/agents/` · `home/settings.json` · `powershell/` | git 이 다루는 것 — diff 나오고 되돌릴 수 있다 |
+| **`Desktop/forge`** (별도 레포) | forge 스킬 4종 실물 | 활발히 개발 중. `home/skills/` 에서 심링크로 당겨 쓴다 |
+| **G드라이브 `claude-sync`** | 프로젝트별 `*-memory/` 5종 | **누적물**. 두 PC 가 각자 append 하므로 git 이면 파일마다 충돌한다 |
+| **각 프로젝트 `.claude/`** | `hooks/` · `rules/` · `CLAUDE.md` | 코드와 **같은 커밋**에 버전이 매겨져야 한다. 훅은 `.dev/plans/be/` 같은 프로젝트 경로를 직접 참조하는 코드다 |
+
+### 심링크 vs 복사 — `install.ps1` 이 나누는 기준
+
+Claude Code 는 `~/.claude/skills/` 같은 **정해진 자리만** 보고, 거기 진짜 폴더가 있든 심링크가 있든 구분하지 않는다. 그래서 실물은 여기 한 벌만 두고 심링크로 꽂는다.
+
+- **심링크** — `CLAUDE.md` · `skills/` · `agents/`. 한 벌만 존재해야 하는 것. 어느 PC에서 고쳐도 같은 파일.
+- **복사** — `settings.json` · `statusline.ps1` · `understand-any.ps1`. Claude Code 가 자주 덮어쓰고, `permissions.allow` 는 PC 경로별로 달라야 한다. 심링크면 레포가 늘 dirty 하고 PC 끼리 충돌한다.
+
+`install.ps1` 은 **멱등**이다. 두 번 돌려도 안전하고, 기존 파일은 `-Force` 없이는 안 건드린다.
+
+## 내용
+
+- `install.ps1` — 프로필 배선 + `~/.claude` 배치 + 메모리 심링크 + 검증
+- `powershell/dev-profile.ps1` — `dev bm|cp <이름>`(격리 워크트리에서 claude) · `dev r`(세션 이어하기) · `dev clean` · `dev harvest` · `현황`
+- `powershell/wt-engine.ps1` — worktree lifecycle **공용 엔진**. bookmart `bmwt.ps1` · Coupang `wt.ps1` · `devclean` 이 전부 이걸 부른다(2026-07-28 3벌 → 1벌 통합)
+- `home/` — `~/.claude` 로 꽂히는 것들
+- `새PC.md` — git 이 못 옮기는 것(`.env` · `.venv` · CDP 로그인 크롬) 체크리스트
+- `북마크_레포.md` — 포크 대신 Star 로 돌린 남의 레포 색인
+
+## 규칙 둘 ★
+
+1. **두 PC 에서 동시에 세션을 돌리지 않는다.** 둘 다 메모리에 쓰면 구글드라이브가 «충돌 사본»을 만들어 나중에 어느 게 진짜인지 꼬인다.
+2. **세션 시작 전 구글드라이브 초록불(동기화 완료) 확인.** 안 그러면 옛 메모리로 시작한다.
+
+## 외부 도구 — 새 PC 에서 1회 재연결
+
+인증 토큰은 PC 별로 저장되므로 옮기지 않는다(옮기면 사고). 재로그인이 정답이며, **코딩·대화 품질과는 무관**하다.
+
+- [ ] Chrome 확장 «Claude in Chrome» (브라우저 자동화 쓸 때만)
+- [ ] Gmail / Google Drive / Google Calendar MCP — 첫 사용 때 재로그인
+- [ ] PostHog · Supabase MCP — 재연결
+- [ ] `.env` — `새PC.md` 참조. ※ 비밀번호를 채팅에 붙여넣지 말 것
 
 ## 전제
-- bookmart / Coupang_v2 가 **같은 상위 폴더에 나란히**(기본 `<사용자>\Desktop`).
-- 다른 경로면 그 PC에서 `$env:DEV_PROJECTS` 에 상위폴더 지정.
+
+- bookmart / Coupang_v2 가 **같은 상위 폴더에 나란히**(기본 `<사용자>\Desktop`)
+- 다른 경로면 그 PC 프로필에 `$env:DEV_PROJECTS = '<상위폴더>'`
+
+## 호환 심링크 (한시적)
+
+`~/dotfiles` → `~/claude` 심링크가 걸려 있다. `bookmart/_scripts/bmwt.ps1` 이 `$HOME\dotfiles\powershell\wt-engine.ps1` 을 **하드코딩**해 부르기 때문이다. bookmart 쪽을 고치면 이 심링크는 걷어낸다.

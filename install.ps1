@@ -1,38 +1,120 @@
-# install.ps1 — 이 PC에 dotfiles 를 배선(idempotent). 프로필 dev 런처 + ~\.claude 설정.
-#   새 PC: git clone <이 레포> ~\dotfiles ;  pwsh ~\dotfiles\install.ps1 ;  새 터미널
+# install.ps1 — 이 PC 에 claude 레포를 배선한다(멱등).
+#   새 PC:  gh repo clone gggmlduswjs/claude ~\claude ;  pwsh ~\claude\install.ps1 ;  새 터미널
 #   -Force = 이미 있는 ~\.claude 파일도 덮어씀(기본은 안 건드림 — 그 PC 설정을 날리지 않는다)
+#
+# 무엇이 심링크이고 무엇이 복사인가:
+#   심링크 = 한 벌만 존재해야 하는 것(CLAUDE.md·skills·agents). 어느 PC에서 고쳐도 같은 파일.
+#   복사   = Claude Code 가 자주 덮어쓰거나 PC 마다 달라야 하는 것(settings.json 의
+#            permissions.allow 는 경로별). 심링크면 레포가 늘 dirty 하고 PC 끼리 충돌한다.
 param([switch]$Force)
 $ErrorActionPreference = 'Stop'
-$dev    = Join-Path $PSScriptRoot 'powershell\dev-profile.ps1'
-$marker = '# >>> dotfiles dev launcher >>>'
+$repo   = $PSScriptRoot
+$dotcl  = Join-Path $env:USERPROFILE '.claude'
+$sync   = 'G:\내 드라이브\claude-sync'      # 메모리 전용(두 PC append — git 으로는 매번 충돌)
+$marker = '# >>> dotfiles dev launcher >>>'  # ★그대로 둔다 — 배선 여부 판정 열쇠. 바꾸면 중복 배선된다
 
-if (-not (Test-Path $dev)) { throw "본체 없음: $dev (레포 clone 확인)" }
+function Set-Link($link, $target) {
+  if (-not (Test-Path $target)) { Write-Host "  [skip] 대상 없음: $target" -Fore Yellow; return }
+  $cur = if (Test-Path $link) { (Get-Item $link -Force).Target } else { $null }
+  if ($cur -eq $target) { Write-Host "  [ok]   $(Split-Path $link -Leaf)" -Fore DarkGray; return }
+  if (Test-Path $link) {
+    $bak = "$link.bak"
+    if (Test-Path $bak) { Remove-Item $bak -Recurse -Force }
+    Move-Item $link $bak
+    Write-Host "  [백업] $(Split-Path $link -Leaf) -> .bak" -Fore Yellow
+  }
+  New-Item -ItemType Directory -Force (Split-Path $link) | Out-Null
+  New-Item -ItemType SymbolicLink -Path $link -Target $target | Out-Null
+  Write-Host "  [link] $(Split-Path $link -Leaf)" -Fore Green
+}
+
+function Set-Copy($src, $dst) {
+  if (-not (Test-Path $src)) { return }
+  $name = Split-Path $dst -Leaf
+  if ((Test-Path $dst) -and -not $Force) { Write-Host "  [유지] $name (이 PC 설정 — -Force 로 덮어씀)" -Fore DarkGray; return }
+  New-Item -ItemType Directory -Force (Split-Path $dst) | Out-Null
+  Copy-Item $src $dst -Force
+  Write-Host "  [copy] $name" -Fore Green
+}
+
+# ── 1) PowerShell 프로필에 dev 런처 배선 ────────────────────────────────
+Write-Host "`n== 프로필 ==" -Fore Cyan
+$dev = Join-Path $repo 'powershell\dev-profile.ps1'
+if (-not (Test-Path $dev)) { throw "본체 없음: $dev (clone 확인)" }
 $dir = Split-Path $PROFILE -Parent
-if (-not (Test-Path $dir)) { New-Item -ItemType Directory -Force $dir | Out-Null }
+if (-not (Test-Path $dir))     { New-Item -ItemType Directory -Force $dir | Out-Null }
 if (-not (Test-Path $PROFILE)) { New-Item -ItemType File -Force $PROFILE | Out-Null }
 
 $content = Get-Content $PROFILE -Raw -ErrorAction SilentlyContinue
+$wired = $false
 if ($content -and $content.Contains($marker)) {
-  Write-Host "이미 배선됨 — 건너뜀 ($PROFILE)"
-}
-else {
-  Add-Content $PROFILE "`n$marker`n. `"$dev`"`n# <<< dotfiles dev launcher <<<`n"
-  Write-Host "배선 완료 → $PROFILE"
-  Write-Host "새 터미널을 열면 'dev bm 반품' / 'dev cp 광고' 사용 가능"
-}
-
-# ── ~\.claude 손으로 쓴 설정 ──────────────────────────────────────────────
-# 여기 없으면 이 PC 디스크가 죽을 때 같이 사라진다(CLAUDE.md = Claude 에게 주는 전역 지침).
-# 기본은 **없는 것만** 채운다 — 그 PC에서 따로 손본 설정을 조용히 덮으면 안 된다.
-$claudeSrc = Join-Path $PSScriptRoot 'claude'
-$claudeDst = Join-Path $env:USERPROFILE '.claude'
-if (Test-Path $claudeSrc) {
-  foreach ($f in (Get-ChildItem $claudeSrc -Recurse -File)) {
-    $rel  = $f.FullName.Substring($claudeSrc.Length).TrimStart('\')
-    $dest = Join-Path $claudeDst $rel
-    if ((Test-Path $dest) -and -not $Force) { Write-Host "  이미 있음 — 건너뜀: $rel"; continue }
-    New-Item -ItemType Directory -Force (Split-Path $dest -Parent) | Out-Null
-    Copy-Item $f.FullName $dest -Force
-    Write-Host "  배치: $rel"
+  # 배선돼 있어도 가리키는 파일이 없으면 옛 경로다(dotfiles→claude 개명 등). 블록째 걷어낸다.
+  if ($content -match [regex]::Escape($dev)) {
+    Write-Host "  [ok]   이미 배선됨" -Fore DarkGray; $wired = $true
+  } else {
+    $pat = [regex]::Escape($marker) + '.*?# <<< dotfiles dev launcher <<<'
+    Set-Content $PROFILE ([regex]::Replace($content, $pat, '', 'Singleline').TrimEnd())
+    Write-Host "  [갱신] 옛 배선 제거 — 경로가 바뀌었다" -Fore Yellow
   }
 }
+if (-not $wired) {
+  Add-Content $PROFILE "`n$marker`n. `"$dev`"`n# <<< dotfiles dev launcher <<<`n"
+  Write-Host "  [배선] $PROFILE  → 새 터미널에서 'dev bm' / '현황' 사용 가능" -Fore Green
+}
+
+# ── 2) ~/.claude 배치 ───────────────────────────────────────────────────
+Write-Host "`n== ~/.claude ==" -Fore Cyan
+Set-Link (Join-Path $dotcl 'CLAUDE.md') (Join-Path $repo 'home\CLAUDE.md')
+Set-Link (Join-Path $dotcl 'skills')    (Join-Path $repo 'home\skills')
+Set-Link (Join-Path $dotcl 'agents')    (Join-Path $repo 'home\agents')
+Set-Copy (Join-Path $repo 'home\settings.json')       (Join-Path $dotcl 'settings.json')
+Set-Copy (Join-Path $repo 'home\statusline.ps1')      (Join-Path $dotcl 'statusline.ps1')
+Set-Copy (Join-Path $repo 'home\understand-any.ps1')  (Join-Path $dotcl 'understand-any.ps1')
+
+# ── 3) 메모리 심링크 ────────────────────────────────────────────────────
+# 프로젝트별 memory 는 Drive 에 둔다 — 두 PC 가 각자 append 하는 누적물이라 git 이면 파일마다 충돌한다.
+# (워크트리 세션의 memory 는 settings.json 의 SessionStart 훅이 그때그때 걸어준다)
+Write-Host "`n== 메모리 ==" -Fore Cyan
+$u = $env:USERNAME
+$map = @{
+  "C--Users-$u-Desktop-bookmart"   = 'bookmart-memory'
+  "C--Users-$u-Desktop-Coupang-v2" = 'coupang-v2-memory'
+  "C--Users-$u-Desktop-Coupong"    = 'coupong-memory'
+  "C--Users-$u-Desktop-speakfit"   = 'speakfit-memory'
+  'G---------Obsidian'             = 'obsidian-memory'
+}
+if (Test-Path $sync) {
+  foreach ($h in $map.Keys) { Set-Link "$dotcl\projects\$h\memory" "$sync\$($map[$h])" }
+} else {
+  Write-Host "  [skip] Drive 없음: $sync (동기화 완료 후 다시 실행)" -Fore Yellow
+}
+
+# ── 4) 검증 ─────────────────────────────────────────────────────────────
+# 기댓값을 숫자로 박아두면 메모리가 늘 때마다 낡아서 '성공'을 '실패'로 읽는다
+# (실제로 279/148 로 박아둔 게 404/220 이 됐다). Drive 원본과 대조하면 안 낡는다.
+Write-Host "`n== 검증 ==" -Fore Cyan
+$ok = $true
+foreach ($n in 'CLAUDE.md', 'skills') {          # 필수
+  $hit = Test-Path (Join-Path $dotcl $n)
+  if (-not $hit) { $ok = $false }
+  Write-Host ("  {0,-12} {1}" -f $n, $(if ($hit) { 'OK' } else { 'X' })) -Fore $(if ($hit) { 'Green' } else { 'Red' })
+}
+# agents 는 선택 — 레포에 아직 없으면 실패가 아니다
+$agentSrc = Join-Path $repo 'home\agents'
+Write-Host ("  {0,-12} {1}" -f 'agents', $(if (Test-Path $agentSrc) { 'OK' } else { '— (레포에 없음)' })) -Fore DarkGray
+# .claude-plugin 같은 점폴더는 스킬이 아니다
+$cnt = (Get-ChildItem "$dotcl\skills" -Directory -EA SilentlyContinue | Where-Object Name -notlike '.*').Count
+Write-Host ("  {0,-12} {1}종" -f 'skills', $cnt)
+if (Test-Path $sync) {
+  foreach ($h in $map.Keys) {
+    $m = "$dotcl\projects\$h\memory"; $src = "$sync\$($map[$h])"
+    $want = if (Test-Path $src) { (Get-ChildItem $src -File -Recurse -EA SilentlyContinue).Count } else { 0 }
+    $got  = if (Test-Path $m)   { (Get-ChildItem $m   -File -Recurse -EA SilentlyContinue).Count } else { -1 }
+    $good = ($want -gt 0 -and $got -eq $want)
+    if (-not $good) { $ok = $false }
+    Write-Host ("  {0,-20} {1} / {2} 원본  {3}" -f $map[$h], $got, $want, $(if ($good) { 'OK' } else { 'X' })) -Fore $(if ($good) { 'Green' } else { 'Red' })
+  }
+}
+Write-Host ""
+if ($ok) { Write-Host "완료. 새 터미널을 열면 끝." -Fore Green }
+else     { Write-Host "일부 X — 위 줄을 확인. Drive 동기화(초록불) 또는 개발자 모드(심링크 권한)를 먼저." -Fore Yellow }

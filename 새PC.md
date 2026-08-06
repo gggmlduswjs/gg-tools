@@ -6,14 +6,14 @@ git 이 옮겨주는 것과 **사람이 손으로 해야 하는 것**을 구분�
 ## 1. git 이 다 해주는 것 (5분)
 
 ```powershell
-git clone https://github.com/gggmlduswjs/dotfiles       $env:USERPROFILE\dotfiles
-pwsh $env:USERPROFILE\dotfiles\install.ps1              # 프로필 배선 + ~\.claude 설정 배치
-
-git clone https://github.com/gggmlduswjs/claude-skills  $env:USERPROFILE\.claude\skills
+gh auth login                                           # 전부 private 레포다
+gh repo clone gggmlduswjs/claude $env:USERPROFILE\claude
+pwsh $env:USERPROFILE\claude\install.ps1                # 프로필 배선 + ~\.claude 배치 + 메모리 심링크
 
 cd $env:USERPROFILE\Desktop                             # ★두 레포는 같은 상위 폴더에 나란히
-git clone https://github.com/gggmlduswjs/Coupang_v2
-git clone https://github.com/gggmlduswjs/bookmart
+gh repo clone gggmlduswjs/Coupang_v2
+gh repo clone gggmlduswjs/bookmart
+gh repo clone gggmlduswjs/forge                         # forge 스킬 4종 실물 — 없으면 그 스킬만 안 뜬다
 ```
 
 Desktop 이 아닌 곳에 두면 그 PC 프로필에 `$env:DEV_PROJECTS = '<상위폴더>'`.
@@ -49,5 +49,6 @@ pip 은 "설치됨"이라고 답하면서 import 는 실패한다.
 
 - `out/`·`data/` 런타임 산출물 — 다시 돌리면 생긴다
 - Obsidian 금고(`G:\내 드라이브\Obsidian`) — 구글 드라이브 동기화 소관
-- `~/.claude/projects/*/memory/` — **세션 메모리. 이건 백업이 없다.**
-  잃으면 프로젝트 맥락이 날아가므로, 옮길 거면 폴더째 복사할 것
+- `~/.claude/projects/*/memory/` — 세션 메모리. **G드라이브 `claude-sync` 에 있고
+  `install.ps1` 이 심링크를 걸어준다**(2026-08-06 부터). 손으로 옮길 것 없다.
+  대신 **두 PC 동시 세션 금지** — Drive 가 충돌 사본을 만든다
