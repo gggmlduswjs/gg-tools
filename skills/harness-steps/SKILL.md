@@ -1,5 +1,5 @@
 ---
-name: harness
+name: harness-steps
 description: jha0313 Harness 프레임워크 워크플로 — 큰 작업을 자기완결적 step으로 분해해 순차 실행/자가교정하는 방식. "하네스", "harness", "harness로 작업", "step으로 분해", "phase 계획 세워", "자율 실행기/execute.py로 돌려", "단계별 계획+자동실행" 같은 요청에 트리거. 탐색(docs)→논의→step 설계→phases 파일 생성→scripts/execute.py 순차 실행(가드레일 주입·컨텍스트 누적·3회 자가교정) 까지 다룬다. 번들: scripts/execute.py(자율 실행기), scripts/test_execute.py, docs/{PRD,ARCHITECTURE,ADR}.md 템플릿, commands/{harness,review}.md 원본.
 ---
 

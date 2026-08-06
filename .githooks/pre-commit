@@ -9,19 +9,19 @@
 root=$(git rev-parse --show-toplevel 2>/dev/null) || exit 0
 fail=0
 
-# ── ① 스킬 폴더 ↔ home/skills/README.md 등록 대조 ────────────────────────
+# ── ① 스킬 폴더 ↔ skills/README.md 등록 대조 ────────────────────────
 # README 규칙이 "등록 안 된 스킬은 없는 것과 같다" 인데 지키는 장치가 없어서
 # forge 4종이 조용히 빠져 있었다(2026-08-06 발견). description 만 컨텍스트에 올라가는
 # 구조라 **README 에 없으면 사람도 에이전트도 그 스킬의 존재를 모른다.**
 # 개수가 아니라 이름으로 대조한다 — 하나 지우고 하나 더하면 개수는 그대로다.
-if [ -f "$root/home/skills/README.md" ]; then
-  cd "$root/home/skills" || exit 0
+if [ -f "$root/skills/README.md" ]; then
+  cd "$root/skills" || exit 0
   have=$(ls -d */ 2>/dev/null | sed 's#/##' | sort)
   listed=$(grep -o '^| \*\*[A-Za-z0-9_-]*\*\*' README.md | sed 's/^| \*\*//; s/\*\*$//' | sort)
   missing=$(comm -23 <(echo "$have") <(echo "$listed"))
   stale=$(comm -13 <(echo "$have") <(echo "$listed"))
   if [ -n "$missing" ] || [ -n "$stale" ]; then
-    echo "✗ home/skills/README.md 와 실제 스킬 폴더가 어긋납니다."
+    echo "✗ skills/README.md 와 실제 스킬 폴더가 어긋납니다."
     [ -n "$missing" ] && echo "  README 에 없는 스킬(등록 필요):" && echo "$missing" | sed 's/^/    - /'
     [ -n "$stale"   ] && echo "  폴더가 없는데 README 에 남은 항목:" && echo "$stale"   | sed 's/^/    - /'
     echo "  → README 표에 한 줄 추가/삭제 후 다시 커밋하세요."

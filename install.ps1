@@ -2,16 +2,22 @@
 #   새 PC:  gh repo clone gggmlduswjs/claude ~\claude ;  pwsh ~\claude\install.ps1 ;  새 터미널
 #   -Force = 이미 있는 ~\.claude 파일도 덮어씀(기본은 안 건드림 — 그 PC 설정을 날리지 않는다)
 #
-# 무엇이 심링크이고 무엇이 복사인가:
-#   심링크 = 한 벌만 존재해야 하는 것(CLAUDE.md·skills·agents). 어느 PC에서 고쳐도 같은 파일.
+# 무엇을 어떻게 배치하나:
+#   plugin = 스킬 23종. `/plugin install gggmlduswjs/claude` 로 받는다 — 이 스크립트가 아니다.
+#   심링크 = 한 벌만 존재해야 하는 것(CLAUDE.md·agents) + forge 스킬 4종(별도 레포).
 #   복사   = Claude Code 가 자주 덮어쓰거나 PC 마다 달라야 하는 것(settings.json 의
 #            permissions.allow 는 경로별). 심링크면 레포가 늘 dirty 하고 PC 끼리 충돌한다.
+#
+# ⚠️ plugin 은 스킬만 나른다. CLAUDE.md·settings.json·git 훅·PowerShell 프로필·메모리
+#    심링크는 plugin 규약에 자리가 없다 → 이 스크립트가 계속 필요하다.
 param([switch]$Force)
 $ErrorActionPreference = 'Stop'
 $repo   = $PSScriptRoot
 $dotcl  = Join-Path $env:USERPROFILE '.claude'
 $sync   = 'G:\내 드라이브\claude-sync'      # 메모리 전용(두 PC append — git 으로는 매번 충돌)
 $marker = '# >>> dotfiles dev launcher >>>'  # ★그대로 둔다 — 배선 여부 판정 열쇠. 바꾸면 중복 배선된다
+# 프로젝트 레포들이 사는 곳. 2.5)·3)·4.5) 가 쓴다 — 첫 사용처보다 앞에 둔다.
+$base = if ($env:DEV_PROJECTS) { $env:DEV_PROJECTS } else { Join-Path $env:USERPROFILE 'Desktop' }
 
 function Set-Link($link, $target) {
   if (-not (Test-Path $target)) { Write-Host "  [skip] 대상 없음: $target" -Fore Yellow; return }
@@ -25,6 +31,22 @@ function Set-Link($link, $target) {
   }
   New-Item -ItemType Directory -Force (Split-Path $link) | Out-Null
   New-Item -ItemType SymbolicLink -Path $link -Target $target | Out-Null
+  Write-Host "  [link] $(Split-Path $link -Leaf)" -Fore Green
+}
+
+function Set-LinkDir($link, $target) {
+  # 디렉터리는 **junction** 으로 건다. `New-Item -ItemType SymbolicLink` 는 Windows 에서
+  # 개발자 모드/관리자가 아니면 조용히 실패한다(2026-08-06 실측 — 링크가 안 생겼는데
+  # 에러도 안 났다). junction 은 권한이 필요 없고 Claude Code 는 둘을 구분하지 않는다.
+  if (-not (Test-Path $target)) { Write-Host "  [skip] 대상 없음: $target" -Fore Yellow; return }
+  $cur = Get-Item $link -Force -EA SilentlyContinue
+  if ($cur) {
+    if ($cur.LinkType -and $cur.Target -eq $target) {
+      Write-Host "  [ok]   $(Split-Path $link -Leaf)" -Fore DarkGray; return
+    }
+    if ($cur.LinkType) { $cur.Delete() } else { Remove-Item $link -Recurse -Force }
+  }
+  cmd /c mklink /J "$link" "$target" | Out-Null
   Write-Host "  [link] $(Split-Path $link -Leaf)" -Fore Green
 }
 
@@ -63,20 +85,40 @@ if (-not $wired) {
 }
 
 # ── 2) ~/.claude 배치 ───────────────────────────────────────────────────
+# ⚠️ skills 는 **여기서 링크하지 않는다**(2026-08-06 전환). 레포 루트 `skills/` 를
+#    plugin 이 나른다 — `/plugin install gggmlduswjs/claude`. 아래 2.5) 의 forge 만 예외다.
 Write-Host "`n== ~/.claude ==" -Fore Cyan
 Set-Link (Join-Path $dotcl 'CLAUDE.md') (Join-Path $repo 'home\CLAUDE.md')
-Set-Link (Join-Path $dotcl 'skills')    (Join-Path $repo 'home\skills')
 Set-Link (Join-Path $dotcl 'agents')    (Join-Path $repo 'home\agents')
 Set-Copy (Join-Path $repo 'home\settings.json')       (Join-Path $dotcl 'settings.json')
 Set-Copy (Join-Path $repo 'home\statusline.ps1')      (Join-Path $dotcl 'statusline.ps1')
 Set-Copy (Join-Path $repo 'home\understand-any.ps1')  (Join-Path $dotcl 'understand-any.ps1')
+
+# ── 2.5) forge 스킬 4종 (별도 레포라 plugin 에 안 실린다) ───────────────
+# `Desktop/forge` 가 정본이고 이 레포에선 gitignore 다 → plugin 패키지에 포함되지 않는다.
+# 활발히 개발 중이라 복사본이 되면 즉시 반영을 잃는다. 그래서 링크로 남긴다.
+# **이 배선은 예전엔 손으로 만들어져 있었다** — install.ps1 에 없어서 새 PC 엔 forge 가
+# 통째로 없었다(2026-08-06 발견).
+$forgeSrc = Join-Path $base 'forge\skills'
+if (Test-Path $forgeSrc) {
+  $skillDst = Join-Path $dotcl 'skills'
+  # plugin 전환 전의 통짜 링크가 남아 있으면 걷어낸다 — 그대로 두면 그 안에 junction 을
+  # 만들려다 레포 쪽 skills/ 를 오염시킨다.
+  $ex = Get-Item $skillDst -Force -EA SilentlyContinue
+  if ($ex -and $ex.LinkType) { $ex.Delete() ; Write-Host "  [정리] 옛 skills 링크 제거" -Fore Yellow }
+  New-Item -ItemType Directory -Force $skillDst | Out-Null
+  foreach ($f in (Get-ChildItem $forgeSrc -Directory)) {
+    Set-LinkDir (Join-Path $skillDst $f.Name) $f.FullName
+  }
+} else {
+  Write-Host "  [skip] forge 레포 없음: $forgeSrc (gh repo clone 후 다시 실행)" -Fore Yellow
+}
 
 # ── 3) 프로젝트별 편집기 설정 ───────────────────────────────────────────
 # .vscode/ 는 두 레포 다 gitignore 라 PC 를 옮기면 사라진다. 그런데 files.exclude
 # (탐색기에서 캐시·빌드·생성물 숨기기)는 PC 마다 다시 만들 이유가 없는 설정이다.
 # 여기에 정본을 두고 배치한다. 기존 파일은 안 덮는다(그 PC 에서 손본 걸 날리면 안 된다).
 Write-Host "`n== 프로젝트 편집기 설정 ==" -Fore Cyan
-$base = if ($env:DEV_PROJECTS) { $env:DEV_PROJECTS } else { Join-Path $env:USERPROFILE 'Desktop' }
 $projSrc = Join-Path $repo 'projects'
 if (Test-Path $projSrc) {
   foreach ($p in (Get-ChildItem $projSrc -Directory)) {
@@ -128,17 +170,25 @@ foreach ($p in @('bookmart', 'Coupang_v2')) {
 # (실제로 279/148 로 박아둔 게 404/220 이 됐다). Drive 원본과 대조하면 안 낡는다.
 Write-Host "`n== 검증 ==" -Fore Cyan
 $ok = $true
-foreach ($n in 'CLAUDE.md', 'skills') {          # 필수
-  $hit = Test-Path (Join-Path $dotcl $n)
-  if (-not $hit) { $ok = $false }
-  Write-Host ("  {0,-12} {1}" -f $n, $(if ($hit) { 'OK' } else { 'X' })) -Fore $(if ($hit) { 'Green' } else { 'Red' })
-}
+$hit = Test-Path (Join-Path $dotcl 'CLAUDE.md')   # 필수
+if (-not $hit) { $ok = $false }
+Write-Host ("  {0,-12} {1}" -f 'CLAUDE.md', $(if ($hit) { 'OK' } else { 'X' })) -Fore $(if ($hit) { 'Green' } else { 'Red' })
 # agents 는 선택 — 레포에 아직 없으면 실패가 아니다
 $agentSrc = Join-Path $repo 'home\agents'
 Write-Host ("  {0,-12} {1}" -f 'agents', $(if (Test-Path $agentSrc) { 'OK' } else { '— (레포에 없음)' })) -Fore DarkGray
 # 점폴더는 스킬이 아니다(.git 등). 필터를 빼면 개수가 실제보다 크게 나온다
 $cnt = (Get-ChildItem "$dotcl\skills" -Directory -EA SilentlyContinue | Where-Object Name -notlike '.*').Count
-Write-Host ("  {0,-12} {1}종" -f 'skills', $cnt)
+Write-Host ("  {0,-12} {1}종 (forge — 나머지는 plugin)" -f 'skills', $cnt)
+# plugin 이 실제로 깔렸는지 — 여기가 비면 스킬 23종이 통째로 없는 것이다.
+# **이 확인이 없으면 "install 성공"이 스킬 없는 환경을 초록으로 덮는다.**
+$pl = Get-ChildItem "$dotcl\plugins\cache" -Recurse -Depth 3 -Filter 'plugin.json' -EA SilentlyContinue |
+      Where-Object { (Get-Content $_.FullName -Raw) -match '"name"\s*:\s*"gg-harness"' }
+if ($pl) {
+  Write-Host ("  {0,-12} OK" -f 'plugin') -Fore Green
+} else {
+  Write-Host ("  {0,-12} X  → Claude Code 에서 /plugin install gggmlduswjs/claude" -f 'plugin') -Fore Red
+  $ok = $false
+}
 if (Test-Path $sync) {
   foreach ($h in $map.Keys) {
     $m = "$dotcl\projects\$h\memory"; $src = "$sync\$($map[$h])"

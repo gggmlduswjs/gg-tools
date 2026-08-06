@@ -58,10 +58,10 @@ pwsh $HOME\claude\install.ps1
 | **grill-with-docs** | grill + 진행하면서 ADR·용어집까지 생성 |
 | **domain-modeling** | 도메인 용어(ubiquitous language) 정리 · ADR 기록 |
 | **product-spec-kit** | PRD·기능명세서·유저플로우·와이어프레임 **4종 한 세트** → HTML |
-| **harness** | 큰 작업을 **자기완결 step 으로 분해** → `execute.py` 로 순차 자동 실행·3회 자가교정 |
+| **harness-steps** | 큰 작업을 **자기완결 step 으로 분해** → `execute.py` 로 순차 자동 실행·3회 자가교정 |
 
 > **grill 3종 차이** — `grill-me` = 그냥 시작. `grill-with-docs` = 문서까지 남길 때. `grilling` = 본체(직접 부를 일 적음).
-> **harness vs harness-audit** — `harness` 는 **일을 시키는** 실행 프레임워크, `harness-audit` 은 **환경을 진단**하는 도구. 이름만 비슷하고 하는 일이 다르다.
+> **harness-steps vs harness-audit** — `harness-steps` 는 **일을 시키는** 실행 프레임워크, `harness-audit` 은 **환경을 진단**하는 도구. 이름만 비슷하고 하는 일이 다르다.
 
 ## ✅ 검증 — 짜고 나서
 
@@ -107,7 +107,7 @@ pwsh $HOME\claude\install.ps1
 |---|---|
 | 이 레포 에이전트가 다루기 좋나? | `ai-readiness-cartography` |
 | 내 작업 환경 어디가 비었나? | `harness-audit` |
-| 큰 작업을 어떻게 쪼개지? | `harness` |
+| 큰 작업을 어떻게 쪼개지? | `harness-steps` |
 | 이 계획 구멍 없나? | `grill-me` |
 | 방금 짠 코드 괜찮나? | `code-review-7p` |
 | 보안 한번 훑고 싶다 | `owasp-security-scan` |
