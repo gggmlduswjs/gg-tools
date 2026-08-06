@@ -39,6 +39,7 @@ Claude Code 는 `~/.claude/skills/` 같은 **정해진 자리만** 보고, 거�
 - `install.ps1` — 프로필 배선 + `~/.claude` 배치 + 메모리 심링크 + 검증
 - `powershell/dev-profile.ps1` — `dev bm|cp <이름>`(격리 워크트리에서 claude) · `dev r`(세션 이어하기) · `dev clean` · `dev harvest` · `현황`
 - `powershell/wt-engine.ps1` — worktree lifecycle **공용 엔진**. bookmart `bmwt.ps1` · Coupang `wt.ps1` · `devclean` 이 전부 이걸 부른다(2026-07-28 3벌 → 1벌 통합)
+- `hooks/tdd_guard.py` — TDD 가드 **공용 엔진**(2026-08-06). 각 레포 `.claude/hooks/tdd_guard.py` 는 환경변수 둘(`TDD_GUARDED`·`TDD_TESTS`)만 정하는 shim 이다. wt-engine 과 같은 배선 — 로직이 한 벌이라 한쪽에서 고친 오탐이 반대편에도 간다. 엔진이 없는 PC 에서는 조용히 통과한다(가드가 작업을 막으면 안 된다)
 - `home/` — `~/.claude` 로 꽂히는 것들
 - `projects/<레포>/` — 그 레포 폴더로 배치되는 것. 지금은 `.vscode/settings.json`(탐색기 `files.exclude`)뿐이다. **`.vscode/` 는 두 레포 다 gitignore 라 PC 를 옮기면 사라지는데**, 캐시·빌드·생성물을 숨기는 설정은 PC 마다 다시 만들 이유가 없어서 정본을 여기 둔다
 - `scripts/skill_hitrate.py` — 세션 로그에서 스킬·에이전트 실제 호출 횟수를 센다. 보유 자산이 매 세션 내는 비용(description) 대비 얼마나 불리는지 재는 용도
