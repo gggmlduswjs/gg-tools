@@ -11,7 +11,7 @@ wt-engine.ps1 — worktree 세션 격리 엔진 (프로젝트 공용)
 
 쓰는 법 — 각 레포의 얇은 shim 이 이 파일을 dot-source 하고 Invoke-Wt 를 부른다:
 
-    . "$HOME\dotfiles\powershell\wt-engine.ps1"
+    . "$HOME\claude\powershell\wt-engine.ps1"
     Invoke-Wt -Config @{
       Label='Coupang'; WtDir='Coupang_v2-wt'; BranchPrefix=''
       Provision=@('.env'); SessionsDir=$null; SweepRefs=@(); CleanHint='.\wt.ps1 rm <이름>'
