@@ -14,14 +14,23 @@ pwsh $env:USERPROFILE\claude\install.ps1                   # CLAUDE.md·프로�
 # 그다음 dev bm 반품
 ```
 
-Claude Code 안에서 **두 줄**(순서 중요 — marketplace 를 먼저 등록해야 한다):
+Claude Code 안에서 **한 줄씩 따로** 친다. 먼저 marketplace 등록:
 
 ```
 /plugin marketplace add gggmlduswjs/claude
+```
+
+그게 끝난 뒤에 설치:
+
+```
 /plugin install gg-harness@gg-harness
 ```
 
-⚠️ `/plugin install gggmlduswjs/claude` 는 **안 된다** — `Marketplace not found` 가 난다.
+⚠️ **두 줄을 한 번에 붙여넣지 마라.** `marketplace add` 는 입력 프롬프트를 띄우는데,
+거기에 두 줄이 통째로 들어가면 `... is not a valid GitHub owner/repo shorthand` 로
+튕긴다(2026-08-06 실제로 겪었다).
+
+⚠️ `/plugin install gggmlduswjs/claude` 도 **안 된다** — `Marketplace not found`.
 이 레포는 marketplace 이자 plugin 이라(`marketplace.json` 의 `source: "./"`),
 등록과 설치가 별개 단계다.
 
