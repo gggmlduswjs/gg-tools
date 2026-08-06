@@ -1,0 +1,13 @@
+#!/bin/sh
+# 오염 감시 (Detect) — 방금 만든 커밋이 이상하면 알린다. 막지 않는다.
+#
+# 이 레포에서 2026-08-06 에 실제로 났다: 다른 세션이 `git add -A` 를 하면서 내 272 파일이
+# 그쪽 커밋에 딸려갔다(그쪽이 나중에 분리). 중앙값 1 파일짜리 레포다 — 데이터로는 극단값인데
+# **알아챈 게 우연이었다.** 그때 이 훅이 있었으면 커밋 직후에 알았다.
+#
+# 임계 20/5 로 전체 이력 29커밋을 재검사하면 정확히 그 사고 커밋 1건만 발화한다.
+# 커밋은 이미 끝났다 → 무슨 일이 있어도 조용히 통과한다.
+_sentinel="$(git rev-parse --show-toplevel)/hooks/commit_sentinel.py"
+[ -f "$_sentinel" ] || exit 0
+SENTINEL_FILES=20 SENTINEL_DIRS=5 python "$_sentinel" || true
+exit 0
