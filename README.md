@@ -34,6 +34,19 @@ Claude Code 는 `~/.claude/skills/` 같은 **정해진 자리만** 보고, 거�
 
 `install.ps1` 은 **멱등**이다. 두 번 돌려도 안전하고, 기존 파일은 `-Force` 없이는 안 건드린다.
 
+### 왜 plugin 이 아닌가 ★
+
+`/plugin install` 형태를 **두 번 검토하고 두 번 접었다**(2026-08-06). 세 번째로 재검토하지 않게 근거를 적는다.
+
+- **구조가 안 맞고, 맞출 값이 없다.** plugin 규약은 `skills/`·`commands/` 가 **레포 루트**에 있어야 하고 경로를 지정하는 필드가 없다(설치된 plugin 3개 실물 확인). 우리는 `home/skills/` 다 — 옮기면 `install.ps1` 심링크·`.gitignore` 의 forge 4종·pre-commit 훅이 전부 같이 깨진다.
+- **`hooks/` 는 이름만 같다.** 여기 `hooks/*.py` 는 세 레포가 공유하는 파이썬 엔진이지 Claude Code hooks 규약이 아니다. plugin 으로 인식되면 오히려 오작동한다.
+- **`install.ps1` 이 plugin 보다 많이 한다.** 5단계 중 plugin 이 대신할 수 있는 건 「`~/.claude` 배치」 하나뿐이다. PowerShell 프로필 · `.vscode` · Drive 메모리 심링크 · `core.hooksPath` 는 plugin 이 못 한다. 새 PC 는 어차피 `install.ps1` 을 돌려야 한다.
+- 지난번 `plugin.json`·`marketplace.json` 은 `installed_plugins.json` 에 한 번도 오른 적 없이 archived 레포를 가리키고 있었다. **아무도 안 쓰는 메타데이터는 낡는 것조차 안 보인다.**
+
+동료에게 나눠 줄 일이 생기면 그때 다시 판단한다. 그전까진 `gh repo clone` + `install.ps1` 두 줄이 같은 일을 더 한다.
+
+**전역 `commands/` 도 만들지 않는다.** 세션 로그 473개(2026-07-23~08-06)를 세니 프로젝트별 slash command 10개(bookmart 8 · Coupang 2)가 **한 번도 안 불렸다** — 같은 기간 스킬은 54회 불렸다. 스킬은 description 이 상황에 맞으면 에이전트가 알아서 부르고, command 는 사람이 타이핑해야 한다. 1인 체제에서 진입점을 늘릴 자리는 command 가 아니라 스킬(또는 `CLAUDE.md` 한 줄)이다.
+
 ## 내용
 
 - `install.ps1` — 프로필 배선 + `~/.claude` 배치 + 메모리 심링크 + 검증
