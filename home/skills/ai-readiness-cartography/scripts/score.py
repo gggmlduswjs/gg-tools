@@ -600,7 +600,16 @@ def score_f(modules: list[Module], repo: Path) -> CategoryScore:
         re.search(r"context|docs|claude|adr|reference", read_text(w), re.IGNORECASE)
         for w in workflows
     )
-    hook_validates_paths = (repo / ".husky" / "pre-commit").exists() or (repo / ".husky" / "pre-push").exists()
+    # ⚠️ `.husky/` 만 보면 **Node 레포만 점수를 받는다.** Python·Go·Rust 레포는 훅 원본을
+    #    레포에 커밋해 두고 설치 스크립트로 `.git/hooks/` 에 깔거나 core.hooksPath 를 쓴다.
+    #    2026-08-06 실측(bookmart): `_scripts/hooks/{pre-commit,pre-push}` 가 git 추적 중이고
+    #    pre-push 가 `check_context_paths.py` 를 돌려 실패 시 push 를 막는데도 -2 였다.
+    #    지표를 맞추려고 가짜 `.husky/` 를 만드는 건 게이밍이지 개선이 아니다 — 판정을 고친다.
+    #    `.git/hooks/` 는 안 본다. 커밋이 안 되므로 그 PC 에만 있는 것이라 「팀이 받는 게이트」가 아니다.
+    HOOK_DIRS = (".husky", "hooks", "scripts/hooks", "_scripts/hooks", ".githooks", "tools/hooks")
+    hook_validates_paths = any(
+        (repo / d / name).exists() for d in HOOK_DIRS for name in ("pre-commit", "pre-push")
+    )
 
     pts = 0
     if measurable:
