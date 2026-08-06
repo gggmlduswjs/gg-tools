@@ -34,6 +34,12 @@ Claude Code 안에서 **한 줄씩 따로** 친다. 먼저 marketplace 등록:
 이 레포는 marketplace 이자 plugin 이라(`marketplace.json` 의 `source: "./"`),
 등록과 설치가 별개 단계다.
 
+⚠️⚠️ **설치 스코프가 `user` 인지 확인할 것.** 명령 인자로 한 번에 치면 그때 cwd 의
+`project` 스코프로 깔린다 — **그 폴더에서만 스킬이 뜨고 다른 레포에선 통째로 없다.**
+화면은 조용하다(2026-08-06 실제로 그렇게 깔렸다). `install.ps1` 이 이걸 노란 △ 로 잡는다.
+이미 project 로 깔렸다면 `~/.claude/plugins/installed_plugins.json` 에서 해당 항목의
+`scope` 를 `user` 로 바꾸고 `projectPath` 를 지우면 된다(형식은 ponytail 항목 참고).
+
 `install.ps1` 은 마지막에 plugin 설치 여부까지 검증한다 — 빨간 X 가 뜨면 위 두 줄을 안 친 것이다.
 
 그다음 **[새PC.md](새PC.md)** — 여기까진 5분이고, 진짜 시간은 `.env` 값과 CDP 로그인 6계정에서 든다.
