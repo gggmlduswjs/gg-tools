@@ -62,6 +62,8 @@ Claude Code 는 `~/.claude/skills/` 같은 **정해진 자리만** 보고, 거�
 - bookmart / Coupang_v2 가 **같은 상위 폴더에 나란히**(기본 `<사용자>\Desktop`)
 - 다른 경로면 그 PC 프로필에 `$env:DEV_PROJECTS = '<상위폴더>'`
 
-## 호환 심링크 (한시적)
+## 개명 이력 — `dotfiles` → `claude` (2026-08-06)
 
-`~/dotfiles` → `~/claude` 심링크가 걸려 있다. `bookmart/_scripts/bmwt.ps1` 이 `$HOME\dotfiles\powershell\wt-engine.ps1` 을 **하드코딩**해 부르기 때문이다. bookmart 쪽을 고치면 이 심링크는 걷어낸다.
+각 레포의 shim 이 `$HOME\dotfiles\powershell\wt-engine.ps1` 을 **하드코딩**해 불렀다. 개명 즉시 워크트리 도구가 죽으므로 양쪽을 같이 고쳤다(bookmart `568ef27f2` · Coupang `1590279c`).
+
+두 shim 은 **옛 경로를 폴백으로 본다** — 아직 개명을 안 받은 PC 에 `~/dotfiles` 실폴더가 있고, 그쪽이 shim 커밋을 먼저 pull 하면 폴백 없이는 깨진다. 모든 PC 가 이 레포를 새 이름으로 받은 뒤 폴백 줄을 지우면 된다.
