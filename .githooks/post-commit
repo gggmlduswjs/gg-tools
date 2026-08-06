@@ -9,5 +9,6 @@
 # 커밋은 이미 끝났다 → 무슨 일이 있어도 조용히 통과한다.
 _sentinel="$(git rev-parse --show-toplevel)/hooks/commit_sentinel.py"
 [ -f "$_sentinel" ] || exit 0
-SENTINEL_FILES=20 SENTINEL_DIRS=5 python "$_sentinel" || true
+SENTINEL_FILES=20 SENTINEL_DIRS=5 SENTINEL_SESSIONS=.claude/sessions \
+  python "$_sentinel" || true
 exit 0

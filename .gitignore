@@ -1,6 +1,10 @@
 .venv/
 *.local.ps1
 
+# 세션이 편집한 파일 기록(touch_log.py) — 로컬 런타임 산출물이지 설정이 아니다.
+# 커밋되면 남의 PC 세션 id 가 이력에 남고, commit_sentinel 이 낡은 기록으로 오탐한다.
+.claude/sessions/
+
 # ── home/skills ──────────────────────────────────────────────
 __pycache__/
 *.pyc

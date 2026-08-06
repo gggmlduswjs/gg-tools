@@ -18,12 +18,25 @@
         ]
       }
     ],
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python \"$HOME/claude/hooks/touch_log.py\"",
+            "timeout": 5,
+            "statusMessage": "편집 기록: 커밋 오염 감지용"
+          }
+        ]
+      }
+    ],
     "SessionEnd": [
       {
         "hooks": [
           {
             "type": "command",
-            "command": "if ($PWD.Path -notmatch 'bookmart|Coupang_v2') { exit }; . \"$env:USERPROFILE\\dotfiles\\powershell\\dev-profile.ps1\"; devclean",
+            "command": "if ($PWD.Path -notmatch 'bookmart|Coupang_v2') { exit }; . \"$env:USERPROFILE\\claude\\powershell\\dev-profile.ps1\"; devclean",
             "shell": "powershell",
             "timeout": 30,
             "statusMessage": "dev clean: 머지된 워크트리 정리"

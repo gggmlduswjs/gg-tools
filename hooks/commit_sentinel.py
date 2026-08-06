@@ -85,13 +85,38 @@ def live_peers(root, rel):
     return n
 
 
+def touch_owners(root, rel, files):
+    """커밋에 든 파일을 최근에 건드린 세션 id 집합. 기록이 없으면 빈 집합.
+
+    둘 이상이면 **한 커밋에 여러 세션의 작업이 섞였다** = 오염의 정의 그 자체다.
+    크기 임계와 달리 작은 오염도 잡는다(2026-08-06: 3 파일짜리가 임계 아래로 샜다).
+    내 session_id 는 알 필요가 없다 — git 훅은 세션 정보를 못 받기 때문에 이 설계여야 한다.
+    """
+    if not rel or files is None:
+        return set()
+    d = Path(root) / rel
+    if not d.is_dir():
+        return set()
+    fset, now, owners = set(files), time.time(), set()
+    for f in d.glob("*.touched"):
+        try:
+            if now - f.stat().st_mtime > STALE_SEC:
+                continue
+            touched = {l.strip() for l in f.read_text(encoding="utf-8").splitlines() if l.strip()}
+        except OSError:
+            continue
+        if fset & touched:
+            owners.add(f.stem)
+    return owners
+
+
 def top(f):
     """파일 경로 → 셀 단위. 최상위 파일은 전부 하나로 묶는다 —
     파일명을 그대로 키로 쓰면 루트 파일 5개짜리 커밋이 '디렉터리 5곳' 으로 부푼다."""
     return f.split("/")[0] + "/" if "/" in f else "(루트)"
 
 
-def judge(files, peers):
+def judge(files, peers, owners=frozenset()):
     """(사유 목록, 임계쌍) — 사유가 비면 정상."""
     if files is None:
         return [], None
@@ -105,6 +130,9 @@ def judge(files, peers):
     dmax = PEER_DIRS_MAX if contaminable else DIRS_MAX
 
     why = []
+    # 크기와 무관하게 이게 제일 강한 신호다 — 크기는 오염의 증상이고 이건 오염 자체다.
+    if len(owners) > 1:
+        why.append(f"세션 {len(owners)}개의 작업이 한 커밋에 섞였다")
     if n > fmax:
         why.append(f"파일 {n}개 (임계 {fmax})")
     if len(dirs) > dmax:
@@ -142,7 +170,7 @@ def main():
     if not root:
         return
     files = commit_files(root)
-    why, extra = judge(files, live_peers(root, SESSIONS))
+    why, extra = judge(files, live_peers(root, SESSIONS), touch_owners(root, SESSIONS, files))
     if not why:
         return
     dirs, contaminable, peers = extra
@@ -202,6 +230,35 @@ def _selftest():
     assert all(not f.startswith('"') for f in files), f"quotePath 가 살아 있다: {files}"
     assert list(judge(files, None)[1][0]) == ["한글폴더/"], files
 
+    # ── 세션 교차 감지 — 크기 임계 아래여도 잡는다 ──────────────────────
+    # 2026-08-06 실제 사고 재현: 3 파일짜리 커밋에 두 세션의 작업이 섞였다.
+    sess = root / ".claude" / "sessions"
+    sess.mkdir(parents=True, exist_ok=True)
+    commit(["src/mine.py", "src/theirs.py", "docs/x.md"], "3 files, two sessions")
+    files = commit_files(root)
+    assert judge(files, None)[0] == [], "크기만 보면 3파일은 통과한다 — 그래서 샜다"
+
+    (sess / "sessionA.touched").write_text("src/mine.py\ndocs/x.md\n", encoding="utf-8")
+    (sess / "sessionB.touched").write_text("src/theirs.py\n", encoding="utf-8")
+    owners = touch_owners(root, ".claude/sessions", files)
+    assert owners == {"sessionA", "sessionB"}, owners
+    why, _ = judge(files, None, owners)
+    assert any("세션 2개" in w for w in why), why
+
+    # 한 세션만 건드렸으면 조용하다 = 정상 작업
+    (sess / "sessionB.touched").unlink()
+    assert judge(files, None, touch_owners(root, ".claude/sessions", files))[0] == []
+
+    # 겹치는 파일이 없는 세션은 주인이 아니다 — 같은 폴더에서 딴 일을 하는 중일 뿐
+    (sess / "sessionC.touched").write_text("unrelated/z.py\n", encoding="utf-8")
+    assert touch_owners(root, ".claude/sessions", files) == {"sessionA"}
+
+    # 오래된 기록은 무시(끝난 세션이 영원히 오염으로 남으면 안 된다)
+    old = sess / "sessionOld.touched"
+    old.write_text("src/theirs.py\n", encoding="utf-8")
+    os.utime(old, (time.time() - STALE_SEC - 60,) * 2)
+    assert touch_owners(root, ".claude/sessions", files) == {"sessionA"}
+
     # ── 머지 커밋은 검사 대상이 아니다 ──────────────────────────────────
     git(root, "switch", "-qc", "side")
     commit([f"m{i}/y.py" for i in range(9)], "side work")
@@ -211,9 +268,12 @@ def _selftest():
 
     # ── 레지스트리가 없으면 판정 불가(None)이지 0 이 아니다 ─────────────
     assert live_peers(root, "") is None
-    assert live_peers(root, ".claude/sessions") is None
+    assert live_peers(root, "no/such/dir") is None
+    # 폴더는 있는데 등록이 없으면 0 이다 — None(판정 불가)과 구분되어야 한다.
+    # 0 이면 "혼자" 로 임계가 느슨해지고, None 이면 크기만 본다. 섞이면 임계가 뒤집힌다.
+    assert live_peers(root, ".claude/sessions") == 0
 
-    print("commit_sentinel selftest OK (14 cases · 정상·파일·디렉터리·오염·루트묶음·한글경로·머지·레지스트리)")
+    print("commit_sentinel selftest OK (20 cases · 크기·오염·세션교차·stale·머지·한글경로)")
 
 
 if __name__ == "__main__":
