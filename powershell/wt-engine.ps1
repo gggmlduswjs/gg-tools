@@ -244,11 +244,20 @@ function Invoke-List {
   }
 
   # 잔해 = 폴더는 있는데 worktree 등록이 없는 것(옛 사고의 흔적: `.git` 만 사라진 폴더).
-  $wtRoot = Join-Path (Split-Path $main -Parent) $script:WtDir
-  if (Test-Path $wtRoot) {
-    foreach ($d in (Get-ChildItem $wtRoot -Directory -ErrorAction SilentlyContinue)) {
+  # **두 곳을 다 본다** — Resolve-WorktreePath 와 같은 이유다(new/start 는 ../<WtDir>/,
+  # Claude Code 의 EnterWorktree 는 <repo>/.claude/worktrees/). ../<WtDir>/ 만 보던 탓에
+  # 후자의 잔해가 목록에 아예 안 떴고, 82MB 가 쌓인 걸 사람이 폴더를 직접 열어보고서야
+  # 찾았다(2026-08-06, 5개). 어디 있는지 알아야 지우므로 위치도 같이 적는다.
+  $scanRoots = @(
+    @{ path = (Join-Path (Split-Path $main -Parent) $script:WtDir); label = $script:WtDir },
+    @{ path = (Join-Path $main '.claude\worktrees');                label = '.claude' }
+  )
+  foreach ($r in $scanRoots) {
+    if (-not (Test-Path $r.path)) { continue }
+    foreach ($d in (Get-ChildItem $r.path -Directory -ErrorAction SilentlyContinue)) {
       if ($seen.ContainsKey($d.FullName.TrimEnd('\'))) { continue }
-      $rows += [pscustomobject]@{ 상태='잔해'; 이름=$d.Name; 브랜치='(.git 없음)'; 미커밋='?'; 커밋='?'; 반영='?'; 활동='—' }
+      $rows += [pscustomobject]@{ 상태='잔해'; 이름=$d.Name; 브랜치="(.git 없음 · $($r.label))"
+                                  미커밋='?'; 커밋='?'; 반영='?'; 활동='—' }
     }
   }
 
