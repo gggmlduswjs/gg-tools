@@ -272,8 +272,11 @@ function Invoke-List {
 }
 
 # ── clean ────────────────────────────────────────────────────────────────────
-function Invoke-Clean([string]$name) {
-  if (-not $name) { throw "이름 필요: clean <name>" }
+function Invoke-Clean($extra) {
+  $extra = @($extra)
+  $force = ($extra -contains '--force') -or ($extra -contains '-f')
+  $name  = [string](@($extra | Where-Object { $_ -notlike '-*' })[0])
+  if (-not $name) { throw "이름 필요: clean <name> [--force]" }
   $main = Get-MainRoot
   $wt   = Resolve-WorktreePath $name $main
   if (-not (Test-Path $wt)) { throw "없음: $wt" }
@@ -282,11 +285,25 @@ function Invoke-Clean([string]$name) {
   # remove 하면 목록에서 사라지므로 **먼저** 잡아둔다.
   $entry = Get-WorktreeEntries | Where-Object { $_.path -eq ($wt -replace '\\', '/') } | Select-Object -First 1
   $br    = if ($entry -and $entry.branch) { $entry.branch } else { Get-BranchName $name }
+  # ★dirty 검사를 **아무것도 지우기 전에** — prune(아래)이 쓰는 것과 같은 판정을 그대로.
+  #   prune 만 이 판정을 쓰고 clean 은 안 썼다. 12h 조용함 게이트는 여기 넣지 않는다 —
+  #   clean 은 사람이 이름을 찍어 부르는 명시적 행동이고 'PR 머지 직후 회수'가 정상 흐름이다.
+  if (-not $force) {
+    $dirty = @(& git --no-optional-locks -C $wt status --porcelain 2>$null)
+    if ($dirty) {
+      $dirty | Select-Object -First 10 | ForEach-Object { Write-Host "  $_" }
+      if ($dirty.Count -gt 10) { Write-Host "  … 외 $($dirty.Count - 10) 개" }
+      throw "미커밋 변경 $($dirty.Count) 개 — $wt`n  커밋하거나, 버려도 되면: clean $name --force"
+    }
+  }
   Remove-LegacyLinks $wt                                   # ★반드시 remove 앞에
   foreach ($f in $script:Provision) { Remove-Item (Join-Path $wt $f) -ErrorAction SilentlyContinue }
-  if ((Invoke-GitShow worktree remove $wt) -ne 0) {
-    Write-Warning "worktree remove 거부 — --force 재시도"
-    Invoke-Git worktree remove --force $wt
+  # ★거부당하면 **멈춘다**. 옛 코드는 거부 이유를 경고 한 줄로 흘리고 곧장 --force 로 승격했다 —
+  #   git 이 거부하는 건 이유가 있을 때다(미커밋·잠금·submodule). 밀 판단은 사람이 --force 로 한다.
+  $rc = if ($force) { Invoke-GitShow worktree remove --force $wt } else { Invoke-GitShow worktree remove $wt }
+  if ($rc -ne 0) {
+    Add-Provision $wt $main    # 살아남은 worktree 를 쓸 수 있게 되돌린다(.env 없으면 import 부터 실패)
+    throw "worktree remove 거부 (위 git 메시지가 이유) — 확인 후 밀려면: clean $name --force"
   }
   # 브랜치를 안 지우면 영원히 쌓인다(2026-07-28: 로컬 74·원격 121). -d 라 미머지는 git 이 거부.
   if ((Invoke-GitShow @('branch', '-d', $br)) -ne 0) {
@@ -426,7 +443,7 @@ function Invoke-Wt {
     'land'       { Invoke-Land }
     'prune'      { Invoke-Prune     ($Rest) }
     'list'       { Invoke-List }
-    { $_ -in 'clean', 'rm' } { Invoke-Clean ([string]$Rest[0]) }   # rm = Coupang 쪽 옛 이름
+    { $_ -in 'clean', 'rm' } { Invoke-Clean ($Rest) }   # rm = Coupang 쪽 옛 이름
     default {
       Write-Host "$label worktree — 세션 격리"
       Write-Host "  start <name>      ★권장: worktree 생성/재사용 + provision + claude 실행"
@@ -434,7 +451,7 @@ function Invoke-Wt {
       Write-Host "  provision [path]  현재/지정 worktree 에 설정파일 복사"
       Write-Host "  land              origin/$($script:MainBr) 에 rebase (push 는 수동)"
       Write-Host "  list              현황 (삭제 안 함)"
-      Write-Host "  clean|rm <name>   제거 (+머지된 브랜치)"
+      Write-Host "  clean|rm <name>   제거 (+머지된 브랜치) · --force = 미커밋 있어도 밀기"
       Write-Host "  prune [--apply]   일괄 정리 (기본 dry-run · --now = 조용함게이트 무시)"
       if ($Command) { throw "알 수 없는 명령: $Command" }
     }
