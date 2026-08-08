@@ -44,4 +44,16 @@ for _e in hooks/tdd_guard hooks/commit_sentinel hooks/touch_log scripts/token_co
   fi
 done
 
+# ── ③ 하네스 엔진(ps1) phase 실어보내기 검사 ────────────────────────────
+# ② 와 같은 이유다 — ai-engine.ps1 도 bookmart·Coupang_v2 공용 한 벌이다.
+# 격리 worktree 로 phase 를 옮기는 두 줄(New-Item/Copy-Item)로 2026-08-08 하루에 세 번 데였고,
+# 세 번 다 조용했다: 「한 겹 안에 박혀 옛 계획으로 돈다」·「폴더가 파일이 된다」.
+# 런이 2초 만에 not found 로 죽고 나서야 알았다 → 커밋 시점으로 당긴다.
+if git diff --cached --name-only | grep -qE '^powershell/(ai-engine|test-phase-carry)\.ps1$'; then
+  if ! pwsh -NoProfile -File "$root/powershell/test-phase-carry.ps1"; then
+    echo "✗ phase 실어보내기 검사 실패 — 엔진을 고치면 bookmart·Coupang 이 같이 영향받습니다."
+    fail=1
+  fi
+fi
+
 exit $fail

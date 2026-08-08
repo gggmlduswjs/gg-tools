@@ -832,12 +832,17 @@ function Invoke-Go {
         $phaseSrc = Join-Path $HarnessDir "phases\$phase"
         $phaseDst = Join-Path $wtRoot ".dev\harness\phases\$phase"
         if (Test-Path $phaseSrc) {
-            New-Item -ItemType Directory -Force -Path (Split-Path -Parent $phaseDst) | Out-Null
+            New-Item -ItemType Directory -Force -Path $phaseDst | Out-Null
             # ⚠️ `Copy-Item <src> <dst> -Recurse` 는 **dst 폴더가 이미 있으면 그 안으로** 넣는다
             #    → `phases/<phase>/<phase>/index.json` 이 생기고, 정작 하네스가 읽는 바깥
             #    `index.json` 은 **옛 판 그대로**다. 실측(2026-08-08): 차단을 풀어 보냈는데
             #    워크트리엔 안 실려 같은 자리에서 또 blocked 됐다 — 조용히 옛 계획으로 돈다.
             #    `<src>\*` 로 **내용물**을 넣어야 한다.
+            # ⚠️ 그리고 dst 가 **없을 때**는 반대로 dst 가 **파일**이 된다 — 소스 글롭이 여러 개면
+            #    `-Force` 가 매 항목마다 덮어 **마지막 파일 하나만** 남고, 하네스는 폴더를 못 찾아
+            #    죽는다. 실측(2026-08-08, 오늘 세 번째): `회계보드-축-소급` 이 7,065바이트
+            #    `step3.md` 사본이 됐고 런은 2초 만에 `not found` / `AI_EXIT_CODE=1`.
+            #    부모(`Split-Path -Parent`)가 아니라 **dst 를** 만들어야 양쪽이 다 닫힌다.
             Copy-Item (Join-Path $phaseSrc "*") $phaseDst -Recurse -Force
             $carried += ".dev/harness/phases/$phase"
         }
