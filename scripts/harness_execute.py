@@ -71,10 +71,19 @@ class AgentConfig:
     provider: str = "codex"
     model: Optional[str] = None
     # 벽시계는 **폭주 방지 천장**이지 hang 탐지기가 아니다 — 그건 `inactivity` 가 한다.
-    # 그래서 크게 잡는다. 옛 기본값 1800(30분)은 정당한 작업을 잘랐다:
+    # 옛 기본값 1800(30분)은 정당한 작업을 잘랐다:
     #   · bookmart 2026-08-07 — 구현 24분짜리 step 이 검증 6분째에 잘림
     #   · Coupang_v2 2026-08-08 — P2b-3 이 작업을 다 끝내고 커밋 직전에 잘림
-    timeout: int = 21600          # 6시간 천장
+    #
+    # ★ 이건 **시도당이 아니라 step 당 총예산**이다(재시도 전부의 합). 2026-08-09 까지는
+    #   시도당 21,600초였고, MAX_RETRIES=3 이라 **한 step 이 최대 18시간**이었다.
+    #   실측(bookmart `인라인셀편집-통일` step1): `retry 3/3` **한 번에만 11,193초(3h06m)**.
+    #   codex 가 runserver 를 띄워놓고 계속 출력을 내서 무응답 감시(2,400초)는 한 번도 안 걸렸다 —
+    #   침묵하지 않는 hang 은 무응답 감시로 못 잡는다. 그래서 총예산이 필요하다.
+    #
+    # 5,400 의 근거 = 시도 3회 × 30분. 30분 = 구현 ~10분 + 이 엔진이 실측한 **완주한 셸 호출
+    # 최장 1,116.8초(18.6분)**. 정직한 시도 두 번은 통째로 들어가고, 위 3h06m 은 90분에 잘린다.
+    timeout: int = 5400           # step 당 총 90분 (시도 전부 합쳐서)
     # 무응답 상한은 「에이전트가 생각하는 시간」이 아니라 **에이전트가 띄운 명령이 도는 시간**으로
     # 잡아야 한다. codex 는 셸 도구가 끝나야 그 출력을 내보내서, 긴 명령 하나가 통째로 침묵이다.
     # 옛 기본값 600(10분)은 정당한 검증을 잘랐다 — bookmart 2026-08-08 밤샘 실측:
@@ -471,7 +480,7 @@ class StepExecutor:
         env["PATH"] = path
         return env
 
-    def _run_agent_watched(self, cmd, prompt: str, env: dict):
+    def _run_agent_watched(self, cmd, prompt: str, env: dict, wall_limit: Optional[float] = None):
         """에이전트를 돌리되 **벽시계가 아니라 「진전 없음」으로** 자른다.
 
         왜 바꿨나 (2026-08-08):
@@ -487,7 +496,11 @@ class StepExecutor:
 
         ⛔ 무한대로 두지 않는다. 2026-08-08 에 러너를 죽였는데 자식이 살아남아
            codex 를 계속 재생성했다 — 상한이 없으면 그런 게 아무도 모르게 돈다.
+
+        `wall_limit` 은 **이 시도에 남은 step 예산**이다(`_execute_single_step` 가 넘긴다).
+        안 주면 종전대로 `AgentConfig.timeout` 을 그대로 쓴다.
         """
+        limit = self._agent.timeout if wall_limit is None else wall_limit
         proc = subprocess.Popen(
             cmd,
             stdin=subprocess.PIPE,
@@ -531,14 +544,17 @@ class StepExecutor:
             if self._inactivity and idle > self._inactivity:
                 killed = f"{int(idle)}초 동안 출력이 한 줄도 없었다 (무응답 상한 {self._inactivity}초)"
                 break
-            if self._agent.timeout and (now - t0) > self._agent.timeout:
-                killed = f"벽시계 천장 {self._agent.timeout}초 초과 (진전은 있었다 — 천장을 올려라)"
+            if limit and (now - t0) > limit:
+                # ⚠️ 이 문구에 `WATCHDOG_MARK`("무응답 상한")를 넣지 마라. 넣으면
+                #    `_unwedge_watchdog_errors` 가 다음 회차에 pending 으로 되돌려
+                #    **예산에 걸린 step 을 무한히 다시 돌린다** — 예산을 넣은 이유가 사라진다.
+                killed = f"step 예산 {int(limit)}초 초과 — 이 step 에 쓸 시간을 다 썼다"
                 break
 
         if killed:
             self._kill_tree(proc)
             print(f"\n  ERROR: {self._agent.provider} 를 끊었다 — {killed}")
-            print(f"  ↳ 무응답 상한은 `-Inactivity <초>`, 천장은 `-Timeout <초>` 로 조정한다.")
+            print(f"  ↳ 무응답 상한은 `-Inactivity <초>`, step 예산은 `-Timeout <초>` 로 조정한다.")
 
         proc.wait()
         for t in readers:
@@ -563,7 +579,7 @@ class StepExecutor:
         except Exception:
             proc.kill()
 
-    def _invoke_agent(self, step: dict, preamble: str) -> dict:
+    def _invoke_agent(self, step: dict, preamble: str, wall_limit: Optional[float] = None) -> dict:
         step_num, step_name = step["step"], step["name"]
         step_file = self._phase_dir / f"step{step_num}.md"
 
@@ -575,7 +591,7 @@ class StepExecutor:
         env = self._agent_env()
         cmd = self._agent_command()
         try:
-            returncode, stdout, stderr = self._run_agent_watched(cmd, prompt, env)
+            returncode, stdout, stderr = self._run_agent_watched(cmd, prompt, env, wall_limit)
         except FileNotFoundError:
             print(f"  ERROR: provider CLI not found: {self._agent.provider}")
             sys.exit(1)
@@ -911,8 +927,19 @@ class StepExecutor:
         step_num, step_name = step["step"], step["name"]
         done = sum(1 for s in self._read_json(self._index_file)["steps"] if s["status"] == "completed")
         prev_error = None
+        # ★ 예산은 **step 하나 전체**에 준다 — 시도마다 새로 주면 상한이 사실상 없다.
+        budget, t_step = self._agent.timeout, time.monotonic()
 
         for attempt in range(1, self.MAX_RETRIES + 1):
+            left = (budget - (time.monotonic() - t_step)) if budget else None
+            if left is not None and left <= 0:
+                # 남은 예산 0 으로 새 시도를 띄우면 즉시 잘려 로그만 더럽힌다. 여기서 접는다.
+                self._give_up_step(
+                    step_num, step_name,
+                    f"step 예산 {budget}초 소진 — {attempt - 1}회 시도 후 중단. "
+                    f"직전 실패: {prev_error or '없음'}",
+                )
+
             index = self._read_json(self._index_file)
             step_context = self._build_step_context(index)
             preamble = self._build_preamble(guardrails, step_context, prev_error)
@@ -922,7 +949,7 @@ class StepExecutor:
                 tag += f" [retry {attempt}/{self.MAX_RETRIES}]"
 
             with progress_indicator(tag) as pi:
-                self._invoke_agent(step, preamble)
+                self._invoke_agent(step, preamble, left)
             elapsed = int(pi.elapsed)  # progress_indicator 는 finally 에서 채운다 — with 안이면 항상 0
 
             index = self._read_json(self._index_file)
@@ -974,20 +1001,35 @@ class StepExecutor:
                 prev_error = err_msg
                 print(f"  ↻ Step {step_num}: retry {attempt}/{self.MAX_RETRIES} — {err_msg}")
             else:
-                for s in index["steps"]:
-                    if s["step"] == step_num:
-                        s["status"] = "error"
-                        s["error_message"] = f"[{self.MAX_RETRIES}회 시도 후 실패] {err_msg}"
-                        s["failed_at"] = ts
-                self._write_json(self._index_file, index)
-                self._commit_step(step_num, step_name)
-                print(f"  ✗ Step {step_num}: {step_name} failed after {self.MAX_RETRIES} attempts [{elapsed}s]")
-                print(f"    Error: {err_msg}")
-                self._emit_reason(err_msg)
-                self._update_top_index("error", err_msg)
-                sys.exit(1)
+                self._give_up_step(step_num, step_name,
+                                   f"[{self.MAX_RETRIES}회 시도 후 실패] {err_msg}", elapsed)
 
         return False  # unreachable
+
+    def _give_up_step(self, step_num: int, step_name: str, err_msg: str,
+                      elapsed: Optional[int] = None):
+        """이 step 을 최종 실패로 적고 런을 끝낸다 (재시도 소진 · 예산 소진 공용).
+
+        ⛔ 여기서 조용히 다음 step 으로 넘어가지 않는다. step 은 앞 step 산출물 위에
+           쌓이므로, 실패한 것을 건너뛰고 이어가면 뒤가 전부 헛돈다. 대신 사유를
+           index 에 남기고 exit(1) 해서 **바깥 감독이 유한 횟수만 재시도**하게 한다
+           (`harness_overnight.ps1` 의 `-MaxRetries`).
+        """
+        index = self._read_json(self._index_file)
+        ts = self._stamp()
+        for s in index["steps"]:
+            if s["step"] == step_num:
+                s["status"] = "error"
+                s["error_message"] = err_msg
+                s["failed_at"] = ts
+        self._write_json(self._index_file, index)
+        self._commit_step(step_num, step_name)
+        took = f" [{elapsed}s]" if elapsed is not None else ""
+        print(f"  ✗ Step {step_num}: {step_name} failed{took}")
+        print(f"    Error: {err_msg}")
+        self._emit_reason(err_msg)
+        self._update_top_index("error", err_msg)
+        sys.exit(1)
 
     def _execute_all_steps(self, guardrails: str):
         while True:
