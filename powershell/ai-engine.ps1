@@ -786,8 +786,16 @@ function Invoke-Go {
         }
         Write-Host "→ 격리 worktree 로 옮겨 실행한다. (굳이 여기서 돌리려면 -Here)"
 
-        $wtScript = Join-Path $Root "wt.ps1"
-        if (-not (Test-Path $wtScript)) { throw "worktree 격리 실패: wt.ps1 없음 ($wtScript). -Here 로 강행하거나 직접 -Repo 를 줘라." }
+        # ⚠️ worktree 스크립트 이름이 레포마다 다르다 — Coupang_v2 는 `wt.ps1`,
+        #    bookmart 는 `_scripts/bmwt.ps1`. 둘 다 같은 공용 엔진(`wt-engine.ps1`)의 shim 이라
+        #    `new <이름>` 인터페이스는 같다. 하나로 고정하면 반대편에서 격리가 죽는다.
+        $wtScript = @("wt.ps1", "_scripts\bmwt.ps1", "bmwt.ps1") |
+            ForEach-Object { Join-Path $Root $_ } |
+            Where-Object { Test-Path $_ } |
+            Select-Object -First 1
+        if (-not $wtScript) {
+            throw "worktree 격리 실패: worktree 스크립트를 못 찾았다 (wt.ps1 · _scripts\bmwt.ps1). -Here 로 강행하거나 직접 -Repo 를 줘라."
+        }
 
         # 이름 충돌을 피하려고 phase 뒤에 시각을 붙인다(같은 phase 를 두 번 격리할 수 있다).
         $wtName = "{0}-{1}" -f $phase, (Get-Date -Format "HHmmss")
@@ -845,6 +853,11 @@ function Invoke-Go {
             $fwd += $Tokens[$i]
         }
         $fwd += @("-Repo", $wtRoot, "-Here")
+        # ⚠️ worktree 는 `wt.ps1` 이 만든 **자기 브랜치**를 이미 물고 있다. 여기서 또
+        #    `feat-<phase>` 를 checkout 하려 들면 git 이 거부한다 — 같은 브랜치는 두 worktree 에
+        #    동시에 못 올라간다. 실측: 본체가 `feat-패키지-계층-재설계` 를 물고 있어
+        #    격리 런이 26초 만에 죽었다("is already used by worktree at ...").
+        if (-not $opts["NoBranch"]) { $fwd += "-NoBranch" }
 
         # ⚠️ Set-RepoRoot 가 Set-Location 을 한다 — 자기 재호출은 같은 프로세스라
         #    돌아온 뒤 **호출자의 CWD 가 새 worktree 에 남는다.** 그러면 이어지는 `.\ai.ps1` 이
