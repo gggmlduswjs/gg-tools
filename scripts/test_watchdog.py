@@ -56,6 +56,16 @@ def test_천장은_남아있다():
     assert "천장" in err, err
 
 
+def test_무응답_기본값이_긴_검증명령을_덮는다():
+    """600(10분)으로 되돌리면 빨개진다.
+
+    codex 는 셸 도구가 **끝나야** 출력을 낸다 — 긴 명령 하나가 통째로 침묵이다.
+    bookmart 2026-08-08 밤샘: 끊긴 step 8/8 이 `test.ps1 -Postgres orders` 실행 중이었고
+    같은 명령이 완주한 회차는 903.9초였다. 그날 최장 완주 셸 호출은 1,116.8초.
+    """
+    assert ex.AgentConfig.inactivity >= 1200
+
+
 def test_정상종료는_그대로():
     self = _executor(inactivity=30, timeout=600)
     rc, out, err = self._run_agent_watched([PY, "-c", "print('done')"], "", None)
