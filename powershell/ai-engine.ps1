@@ -709,8 +709,9 @@ function Test-RunAlive {
     $proc = Get-Process -Id ([int]$Record.pid) -ErrorAction SilentlyContinue
     if (-not $proc) { return $false }
 
-    # 옛 기록엔 pid_started_at 이 없다 — 그 경우는 pid 생존만으로 판정(종전 동작).
-    if (-not $Record.pid_started_at) { return $true }
+    # 옛 기록엔 pid_started_at 이 없다 — 그땐 **이름**으로 거른다. 러너는 항상 pwsh 라
+    # 재사용된 pid 가 다른 프로그램이면 여기서 걸린다(실측: node_repl 이 [running] 으로 보였다).
+    if (-not $Record.pid_started_at) { return ($proc.ProcessName -eq "pwsh") }
 
     try {
         $recorded = [datetime]::Parse($Record.pid_started_at).ToUniversalTime()

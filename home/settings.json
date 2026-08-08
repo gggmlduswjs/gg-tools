@@ -53,7 +53,7 @@
   },
   "statusLine": {
     "type": "command",
-    "command": "npx -y ccstatusline@latest",
+    "command": "pwsh -NoProfile -File \"C:\\Users\\user\\.claude\\statusline-wrapper.ps1\"",
     "padding": 0,
     "refreshInterval": 10
   },

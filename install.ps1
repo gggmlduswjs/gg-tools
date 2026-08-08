@@ -93,6 +93,26 @@ Set-Link (Join-Path $dotcl 'agents')    (Join-Path $repo 'home\agents')
 Set-Copy (Join-Path $repo 'home\settings.json')       (Join-Path $dotcl 'settings.json')
 Set-Copy (Join-Path $repo 'home\statusline.ps1')      (Join-Path $dotcl 'statusline.ps1')
 Set-Copy (Join-Path $repo 'home\understand-any.ps1')  (Join-Path $dotcl 'understand-any.ps1')
+# 상태줄에 「지금 도는 하네스」 칸. wrapper 가 같은 폴더의 harness-status.ps1 을 $PSScriptRoot
+# 로 찾으므로 **둘을 같이** 깔아야 한다. settings.json 의 statusLine 이 wrapper 를 가리킨다.
+Set-Copy (Join-Path $repo 'home\statusline-wrapper.ps1') (Join-Path $dotcl 'statusline-wrapper.ps1')
+Set-Copy (Join-Path $repo 'home\harness-status.ps1')     (Join-Path $dotcl 'harness-status.ps1')
+
+# settings.json 의 statusLine 은 **절대경로**여야 한다 — `-File` 은 `~` 를 안 풀고,
+# `-Command "$HOME/..."` 은 호출 셸이 bash 면 MSYS 경로(`/c/Users/...`)로 풀려 pwsh 가 못 읽는다
+# (2026-08-08 실측, 셋 다 시도). 그래서 PC 마다 다른 경로를 여기서 심는다.
+try {
+    $sPath = Join-Path $dotcl 'settings.json'
+    $wrapper = Join-Path $dotcl 'statusline-wrapper.ps1'
+    $s = Get-Content -Raw $sPath | ConvertFrom-Json
+    if ($s.statusLine) {
+        $s.statusLine.command = 'pwsh -NoProfile -File "' + $wrapper + '"'
+        $s | ConvertTo-Json -Depth 20 | Set-Content -LiteralPath $sPath -Encoding UTF8
+        Write-Host "  statusLine → $wrapper" -Fore DarkGray
+    }
+} catch {
+    Write-Warning "statusLine 경로 심기 실패(상태줄은 그대로 동작): $($_.Exception.Message)"
+}
 
 # ── 2.5) forge 스킬 4종 (별도 레포라 plugin 에 안 실린다) ───────────────
 # `Desktop/forge` 가 정본이고 이 레포에선 gitignore 다 → plugin 패키지에 포함되지 않는다.
