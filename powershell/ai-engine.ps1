@@ -821,7 +821,12 @@ function Invoke-Go {
         $phaseDst = Join-Path $wtRoot ".dev\harness\phases\$phase"
         if (Test-Path $phaseSrc) {
             New-Item -ItemType Directory -Force -Path (Split-Path -Parent $phaseDst) | Out-Null
-            Copy-Item $phaseSrc $phaseDst -Recurse -Force
+            # ⚠️ `Copy-Item <src> <dst> -Recurse` 는 **dst 폴더가 이미 있으면 그 안으로** 넣는다
+            #    → `phases/<phase>/<phase>/index.json` 이 생기고, 정작 하네스가 읽는 바깥
+            #    `index.json` 은 **옛 판 그대로**다. 실측(2026-08-08): 차단을 풀어 보냈는데
+            #    워크트리엔 안 실려 같은 자리에서 또 blocked 됐다 — 조용히 옛 계획으로 돈다.
+            #    `<src>\*` 로 **내용물**을 넣어야 한다.
+            Copy-Item (Join-Path $phaseSrc "*") $phaseDst -Recurse -Force
             $carried += ".dev/harness/phases/$phase"
         }
         $planRel = Get-RepoRelativePath $plan
