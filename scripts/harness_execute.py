@@ -617,8 +617,44 @@ class StepExecutor:
             print(f"  Preflight: skipped")
         print(f"{'='*60}")
 
+    WATCHDOG_MARK = "무응답 상한"
+
+    def _unwedge_watchdog_errors(self, index) -> bool:
+        """무응답 감시가 **끊어서** error 가 된 step 만 pending 으로 되돌린다.
+
+        감시가 끊으면 에이전트가 index 의 status 를 못 써서 「Step did not update
+        status」로 error 가 박힌다. 그 뒤로는 바로 아래 게이트가 1초 만에 exit(1) 해서
+        **바깥(감독)의 재시도가 통째로 무의미해진다** — 2026-08-08 22:11~22:14 실측:
+        감독이 `매입률-소급차단` 재시도 2회를 2분에 다 태웠고 codex 는 한 번도 안 떴다.
+        그래서 오탐 하나가 phase 를 그날 밤 통째로 죽인다.
+
+        ⛔ 사람이 봐야 할 진짜 실패(다른 exitCode)는 손대지 않는다 — 게이트는 그대로다.
+        """
+        changed = False
+        for s in index["steps"]:
+            if s.get("status") != "error":
+                continue
+            out = self._phase_dir / f"step{s['step']}-output.json"
+            if not out.exists():
+                continue
+            try:
+                d = json.loads(out.read_text(encoding="utf-8"))
+            except (OSError, ValueError):
+                continue
+            if d.get("exitCode") != 124 or self.WATCHDOG_MARK not in (d.get("stderr") or ""):
+                continue
+            s["status"] = "pending"
+            s.pop("error_message", None)
+            s.pop("failed_at", None)
+            changed = True
+            print(f"  ↻ Step {s['step']}: 무응답 감시에 끊긴 흔적 — pending 으로 되돌려 다시 시도한다")
+        if changed:
+            self._write_json(self._index_file, index)
+        return changed
+
     def _check_blockers(self):
         index = self._read_json(self._index_file)
+        self._unwedge_watchdog_errors(index)
         for s in reversed(index["steps"]):
             if s["status"] == "error":
                 print(f"\n  ✗ Step {s['step']} ({s['name']}) failed.")

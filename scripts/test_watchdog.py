@@ -78,6 +78,68 @@ def test_stdin_으로_프롬프트를_넘긴다():
     assert rc == 0 and "안녕" in out, (rc, out, err)
 
 
+def _phase(tmp, exit_code, stderr):
+    """error 로 박힌 step 1개짜리 phase 를 만든다."""
+    import json
+    import tempfile
+    d = Path(tempfile.mkdtemp(prefix=tmp))
+    (d / "index.json").write_text(json.dumps({"steps": [
+        {"step": 0, "name": "x", "status": "error",
+         "error_message": "[3회 시도 후 실패] Step did not update status",
+         "failed_at": "2026-08-08T22:00:00+09:00"}]}, ensure_ascii=False), encoding="utf-8")
+    (d / "step0-output.json").write_text(
+        json.dumps({"exitCode": exit_code, "stderr": stderr}, ensure_ascii=False), encoding="utf-8")
+    self = ex.StepExecutor.__new__(ex.StepExecutor)
+    self._phase_dir = d
+    self._index_file = d / "index.json"
+    return self, d
+
+
+def _status(d):
+    import json
+    return json.loads((d / "index.json").read_text(encoding="utf-8"))["steps"][0]
+
+
+def test_무응답으로_끊긴_step_은_다시_pending_이_된다():
+    """감시가 끊으면 에이전트가 status 를 못 써 error 가 박힌다 → 바깥 재시도가 1초 만에 죽는다.
+
+    2026-08-08 실측: 감독이 재시도 2회를 2분에 태우는 동안 codex 는 한 번도 안 떴다.
+    """
+    self, d = _phase("wd-kill-", 124, "[harness] 600초 동안 출력이 한 줄도 없었다 (무응답 상한 600초)")
+    assert self._unwedge_watchdog_errors(self._read_json(self._index_file)) is True
+    s = _status(d)
+    assert s["status"] == "pending", s
+    assert "error_message" not in s and "failed_at" not in s, s
+
+
+def test_진짜_실패는_그대로_막는다():
+    """오탐만 푼다 — 사람이 봐야 할 실패까지 풀면 게이트가 죽는다."""
+    self, d = _phase("wd-real-", 1, "TypeError: 진짜로 터졌다")
+    assert self._unwedge_watchdog_errors(self._read_json(self._index_file)) is False
+    assert _status(d)["status"] == "error"
+
+
+def test_게이트에_실제로_배선돼_있다():
+    """함수만 있고 `_check_blockers` 가 안 부르면 아무것도 안 고친 것이다.
+
+    (단위 검사는 함수를 직접 부르므로 배선이 빠져도 초록이다 — 그래서 게이트로 확인한다.)
+    """
+    self, d = _phase("wd-wire-", 124, "[harness] 600초 동안 출력이 한 줄도 없었다 (무응답 상한 600초)")
+    try:
+        self._check_blockers()                  # 오탐 → 막으면 안 된다
+    except SystemExit as e:
+        raise AssertionError(f"오탐인데 게이트가 exit({e.code}) 했다 — 배선이 빠졌다")
+    assert _status(d)["status"] == "pending"
+
+    self2, d2 = _phase("wd-wire2-", 1, "진짜 실패")
+    try:
+        self2._check_blockers()
+    except SystemExit as e:
+        assert e.code == 1, e.code
+    else:
+        raise AssertionError("진짜 실패인데 게이트가 안 막았다")
+
+
 if __name__ == "__main__":
     fails = 0
     for name, fn in sorted(globals().items()):
