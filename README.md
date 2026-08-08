@@ -70,6 +70,7 @@ Claude Code 는 `~/.claude/CLAUDE.md` 같은 **정해진 자리만** 보고, 거
 | | plugin | install.ps1 |
 |---|---|---|
 | 스킬 22종 | ✅ `/plugin install gg-harness@gg-harness` | — |
+| 커맨드 8종(`기획`·`실행`·`상태`·`검토루프` + 영문 별칭) | ✅ 같이 실린다 | — |
 | forge 스킬 4종 | ✕ (별도 레포·gitignore) | ✅ junction |
 | `CLAUDE.md` · `agents/` | ✕ | ✅ 심링크 |
 | `settings.json` · `statusline.ps1` | ✕ | ✅ 복사 |
@@ -82,7 +83,7 @@ plugin 규약은 `skills/`·`commands/` 가 **레포 루트**에 있어야 하�
 
 ⚠️ **`harness` 를 `harness-steps` 로 개명했다.** 설치된 `harness@harness-marketplace`(revfactory, 에이전트 팀 구성)와 우리 것(jha0313 step 분해 프레임워크)은 **이름만 같고 다른 스킬**이라, plugin 으로 올리면 정면 충돌한다.
 
-**전역 `commands/` 는 만들지 않는다.** 세션 로그 473개(2026-07-23~08-06)를 세니 프로젝트별 slash command 10개(bookmart 8 · Coupang 2)가 **한 번도 안 불렸다** — 같은 기간 스킬은 54회 불렸다. 스킬은 description 이 상황에 맞으면 에이전트가 알아서 부르고, command 는 사람이 타이핑해야 한다.
+**전역 `commands/` 는 8개만 둔다**(2026-08-08 전환). 원래는 "만들지 않는다"였다 — 세션 로그 473개(2026-07-23~08-06)를 세니 프로젝트별 slash command 10개(bookmart 8 · Coupang 2)가 **한 번도 안 불렸다**(같은 기간 스킬은 54회). **호출 빈도가 아니라 복본이 문제라서 뒤집었다**: `기획`·`실행`·`상태`·`검토루프` + 영문 별칭 넷이 bookmart 와 Coupang_v2 에 **글자 하나까지 같게** 복붙돼 있어, 한쪽에서 고친 걸 반대편이 못 받았다(08-07 bookmart 가 찾은 수정을 08-08 Coupang 이 처음부터 다시 찾음). 안 불리는 나머지 커맨드는 그대로 각 레포에 남는다 — 여기 올리는 기준은 **"자주 쓰나"가 아니라 "두 레포에 같은 게 있나"** 다.
 
 ## 내용
 
@@ -90,6 +91,7 @@ plugin 규약은 `skills/`·`commands/` 가 **레포 루트**에 있어야 하�
 - `powershell/dev-profile.ps1` — `dev bm|cp <이름>`(격리 워크트리에서 claude) · `dev r`(세션 이어하기) · `dev clean` · `dev harvest` · `현황`
 - `powershell/wt-engine.ps1` — worktree lifecycle **공용 엔진**. bookmart `bmwt.ps1` · Coupang `wt.ps1` · `devclean` 이 전부 이걸 부른다(2026-07-28 3벌 → 1벌 통합)
 - `hooks/tdd_guard.py` — TDD 가드 **공용 엔진**(2026-08-06). 각 레포 `.claude/hooks/tdd_guard.py` 는 환경변수 둘(`TDD_GUARDED`·`TDD_TESTS`)만 정하는 shim 이다. wt-engine 과 같은 배선 — 로직이 한 벌이라 한쪽에서 고친 오탐이 반대편에도 간다. 엔진이 없는 PC 에서는 조용히 통과한다(가드가 작업을 막으면 안 된다)
+- `commands/` — **plugin 이 나르는 slash command 8종.** 두 레포에 동일 복본이던 것만 올린다(위 「전역 `commands/`」 참고). 루트에 있어야 plugin 규약이 인식한다
 - `skills/` — **plugin 이 나르는 스킬 22종.** 루트에 있어야 plugin 규약이 인식한다. 등록 대조는 `skills/README.md` ↔ 폴더 이름을 pre-commit 이 본다
 - `.claude-plugin/plugin.json` — plugin 메타데이터. `name` 은 `gg-harness`
 - `.claude-plugin/marketplace.json` — **이 레포를 marketplace 로도 등록**한다(`source: "./"`). 이게 없으면 `/plugin install` 이 `Marketplace not found` 로 튕긴다 — 2026-08-06 실제로 튕겼다

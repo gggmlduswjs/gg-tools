@@ -10,7 +10,7 @@
     {
       "name": "gg-harness",
       "source": "./",
-      "version": "1.0.0",
+      "version": "1.1.0",
       "description": "스킬 22종 — 코드 감사(ai-readiness·owasp·code-review-7p) · 설계 문서(product-spec-kit·domain-modeling) · 실행(harness-steps·grilling) · 시각화(report·codebase-visualizer) · 토큰 효율. forge 4종은 별도 레포라 여기 없다(install.ps1 이 junction 으로 건다).",
       "category": "productivity"
     }
