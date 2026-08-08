@@ -36,6 +36,9 @@ ROOT = Path(_env_root).resolve() if _env_root else Path(__file__).resolve().pare
 PHASES_REL = ".dev/harness/phases"          # 레포-상대 phase 경로 (git·서브에이전트 프롬프트용)
 PREFLIGHT_SENTINEL = ".dev/harness/.preflight"  # 에이전트 셸이 실제로 떴는지 증명하는 자리
 VERIFY_REL = ".dev/harness/verify.ps1"      # 레포가 정한 step 검증 명령
+# 레포가 정한 preflight 테스트 명령. 없으면 맨 pytest — 그게 정본이 아닌 레포가 있다
+# (bookmart 는 Django 라 DJANGO_SETTINGS_MODULE 없이 수집이 233건 죽는다).
+PREFLIGHT_TESTS_REL = ".dev/harness/preflight_tests.ps1"
 
 # 테스트가 `os.name` 전역을 못 건드리게 여기서 한 번만 읽는다. 전역을 patch 하면
 # pathlib 이 이 플랫폼에 없는 Path 를 골라(`NotImplementedError: cannot instantiate
@@ -645,19 +648,35 @@ class StepExecutor:
         return Path(sys.executable)
 
     def _preflight_tests(self) -> Optional[str]:
-        """(a) 테스트 러너가 사나 — 수집 에러가 있으면 pytest 는 0 이 아닌 코드를 준다."""
-        py = self._preflight_python()
-        cmd = [str(py), "-m", "pytest", "--collect-only", "-q"]
+        """(a) 테스트 러너가 사나 — 수집 에러가 있으면 러너가 0 이 아닌 코드를 준다.
+
+        ⚠️ **맨 `pytest` 가 모든 레포의 정본은 아니다.** 이 엔진은 여러 레포가 공용으로 쓴다.
+           Coupang_v2 는 Django ORM 이 0개라 맨 pytest 가 맞지만, bookmart 는 Django 앱이라
+           `DJANGO_SETTINGS_MODULE` 없이는 **수집 단계에서 233건이 죽는다**
+           (`ImproperlyConfigured: Requested setting INSTALLED_APPS`, 2026-08-08 실측).
+           그 레포 정본은 `pwsh _scripts/test.ps1`(config.settings_test·SQLite)이다.
+
+        그래서 레포가 자기 검사 명령을 정할 수 있게 한다 — `verify.ps1` 과 같은 방식.
+        `.dev/harness/preflight_tests.ps1` 이 있으면 그걸 쓰고, 없으면 종전대로 맨 pytest.
+        """
+        custom = ROOT / PREFLIGHT_TESTS_REL
+        if custom.exists():
+            cmd = ["powershell", "-NoProfile", "-File", str(custom)]
+            label = "preflight_tests.ps1"
+        else:
+            py = self._preflight_python()
+            cmd = [str(py), "-m", "pytest", "--collect-only", "-q"]
+            label = f"{py.name} -m pytest --collect-only -q"
         try:
             r = subprocess.run(cmd, cwd=self._root, capture_output=True, text=True,
                                timeout=self.PREFLIGHT_TIMEOUT)
         except FileNotFoundError:
-            return f"테스트 러너를 찾을 수 없다: {py}"
+            return f"테스트 러너를 찾을 수 없다: {cmd[0]}"
         except subprocess.TimeoutExpired:
-            return f"pytest --collect-only 가 {self.PREFLIGHT_TIMEOUT}s 안에 안 끝났다"
+            return f"{label} 이 {self.PREFLIGHT_TIMEOUT}s 안에 안 끝났다"
         if r.returncode != 0:
             tail = (r.stdout or "") + (r.stderr or "")
-            return (f"테스트 러너가 죽어 있다 — `{py.name} -m pytest --collect-only -q`"
+            return (f"테스트 러너가 죽어 있다 — `{label}`"
                     f" exit {r.returncode}: {tail.strip()[-400:]}")
         return None
 
