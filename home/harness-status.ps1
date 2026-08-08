@@ -35,12 +35,18 @@ function Test-Alive {
 
 function Get-Progress {
     param([string] $LogPath)
-    # 로그 꼬리에서 "Step 6/12" 만 줍는다. 파일이 커도 끝 40줄이면 충분하다.
+    # 로그 꼬리에서 "Step 6/12" 를 줍는다. 파일이 커도 끝 40줄이면 충분하다.
+    #
+    # ⚠️ 하네스는 **0부터** 센다 — `Step N/{총계-1}`. 5단계 phase 의 마지막이 `4/4` 라
+    #    상태줄에 그대로 내면 **끝난 것처럼 보인다**(2026-08-08 실제로 오해했다).
+    #    상태줄은 사람이 읽는 물건이니 사람 셈(1부터)으로 바꿔 낸다: 4/4 → 5/5.
     try {
         $tail = Get-Content -LiteralPath $LogPath -Tail 40 -ErrorAction SilentlyContinue
         for ($i = $tail.Count - 1; $i -ge 0; $i--) {
             $m = [regex]::Match($tail[$i], 'Step (\d+)/(\d+)')
-            if ($m.Success) { return "{0}/{1}" -f ([int]$m.Groups[1].Value), $m.Groups[2].Value }
+            if ($m.Success) {
+                return "{0}/{1}" -f ([int]$m.Groups[1].Value + 1), ([int]$m.Groups[2].Value + 1)
+            }
         }
     } catch { }
     return $null
@@ -65,7 +71,17 @@ try {
             if (-not $rec) { continue }
             if (-not (Test-Alive $rec)) { continue }
             $logPath = Join-Path $r ($rec.log -replace "/", "\")
-            $live += [pscustomobject]@{ phase = $rec.phase; progress = (Get-Progress $logPath) }
+            $prog = Get-Progress $logPath
+            if (-not $prog) {
+                # step 진행 표시가 없는데 살아 있다 = 구현 루프가 끝나고 **리뷰 단계**다.
+                # 빈칸으로 두면 "멈춘 건가?" 로 읽힌다 — 실제로 그렇게 읽혔다(2026-08-08).
+                $idx = Join-Path $r ".dev\harness\phases\$($rec.phase)\index.json"
+                try {
+                    $steps = (Get-Content -Raw $idx | ConvertFrom-Json).steps
+                    if ($steps -and -not ($steps | Where-Object { $_.status -eq "pending" })) { $prog = "리뷰" }
+                } catch { }
+            }
+            $live += [pscustomobject]@{ phase = $rec.phase; progress = $prog }
         }
     }
 
