@@ -807,7 +807,11 @@ function Invoke-Go {
         $wtRoot = $null
         $porcelain = @(& git -C $Root worktree list --porcelain 2>$null)
         for ($i = 0; $i -lt $porcelain.Count; $i++) {
-            if ($porcelain[$i] -eq "branch refs/heads/$wtName") {
+            # ⚠️ 브랜치 이름을 `refs/heads/$wtName` 으로 **고정 비교하지 마라** — 레포마다
+            #    접두사가 다르다(Coupang_v2 는 없음, bookmart 는 `BranchPrefix='wip/'`).
+            #    실측(2026-08-08): worktree 는 정상 생성됐는데 `wip/AI하네스정리-…` 를 못 찾아
+            #    「git 이 모른다」로 죽었다. 끝부분으로 맞춘다.
+            if ($porcelain[$i] -like "branch refs/heads/*$wtName") {
                 for ($j = $i; $j -ge 0; $j--) {
                     if ($porcelain[$j] -like "worktree *") {
                         $wtRoot = $porcelain[$j].Substring(9).Trim()
