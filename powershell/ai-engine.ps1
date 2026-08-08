@@ -861,6 +861,13 @@ function Invoke-Go {
         #    `feat-<phase>` 를 checkout 하려 들면 git 이 거부한다 — 같은 브랜치는 두 worktree 에
         #    동시에 못 올라간다. 실측: 본체가 `feat-패키지-계층-재설계` 를 물고 있어
         #    격리 런이 26초 만에 죽었다("is already used by worktree at ...").
+        #
+        # ⚠️★ 더 나쁜 경우 — 그 브랜치가 **예전 회차 것으로 이미 있으면** git 이 거부하지 않고
+        #    **갈아탄다.** 그러면 갓 만든 최신 worktree 가 옛 base 로 되돌아간다.
+        #    실측(2026-08-08): `ai-harness-setup` 이 `feat-ai-harness-setup`(71커밋 낡음)으로
+        #    끌려가 **오늘 걷어낸 `.claude/commands/` 12개를 되살리는 diff** 를 만들었다.
+        #    런은 exit 0 로 「성공」했다 — 조용한 낭비다.
+        if (-not $opts["NoBranch"]) { $fwd += "-NoBranch" }
         if (-not $opts["NoBranch"]) { $fwd += "-NoBranch" }
 
         # ⚠️ Set-RepoRoot 가 Set-Location 을 한다 — 자기 재호출은 같은 프로세스라
