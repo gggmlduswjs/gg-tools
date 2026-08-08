@@ -61,6 +61,8 @@ Usage:
   (막지 않는다 — 병렬은 되는 게 맞다). 이 체크아웃에서 굳이 돌리려면 -Here.
   ★ 세션부터 가르는 게 낫다: .\wt.ps1 start <이름> 으로 claude 를 띄우면 터미널마다 체크아웃이 다르다.
   세울 땐 .\ai.ps1 stop — 러너만 죽이면 자식 execute.py 가 codex 를 계속 재생성한다.
+  tasks·tail 은 **모든 worktree** 의 런을 함께 본다(남의 체크아웃 것은 wt=<폴더> 로 표시).
+  stop 은 이 체크아웃만 — 죽이는 명령의 사정거리는 일부러 안 늘렸다.
 
 Common flow:
   1. Claude plans only: create/update .dev/plans/*/*_plan.md
@@ -698,6 +700,66 @@ function Get-RunRecords {
         } | Where-Object { $_ -ne $null })
 }
 
+# 모든 worktree 의 런 기록. **읽기 전용 조회(tasks·tail)에서만** 쓴다.
+#   왜: 엔진이 런을 격리 worktree 로 옮기니까(Invoke-Go), 본체에서 `tasks` 를 쳐도 그 런이
+#   안 보였다 — 실측(2026-08-08): 본체엔 낡은 런 6개만, `-Repo <worktree>` 를 줘야 [running] 이
+#   보였고 `tail` 은 "No background runs found." 였다.
+#
+# ⛔ Get-RunRecords(=현재 체크아웃만) 를 이걸로 갈아치우지 마라. 나머지 셋은 일부러 뺐다:
+#   - Invoke-Go: 알고 싶은 건 "**이** 체크아웃이 바쁘냐"다. 전체를 보면 옆 worktree 에 런이
+#     하나만 살아 있어도 이 체크아웃을 바쁘다고 읽어 엉뚱하게 또 격리한다.
+#   - Invoke-Stop: 죽이는 명령의 사정거리는 늘리지 않는다 — 전체를 보면 아무 폴더에서 친
+#     `stop -All` 이 남의 런까지 죽인다.
+function Get-AllRunRecords {
+    param([int] $Limit = 0)
+
+    # 경로를 짐작하지 않는다 — git 에게 묻는다(Invoke-Go 의 porcelain 파싱과 같은 방식).
+    # worktree 가 없는 레포에선 본체 한 줄만 나온다.
+    $roots = @{}
+    $roots[$Root.ToLowerInvariant()] = $Root
+    foreach ($line in @(& git -C $Root worktree list --porcelain 2>$null)) {
+        if ($line -like "worktree *") {
+            $p = $line.Substring(9).Trim()
+            if ($p) {
+                $full = [System.IO.Path]::GetFullPath($p)
+                if (-not $roots.ContainsKey($full.ToLowerInvariant())) { $roots[$full.ToLowerInvariant()] = $full }
+            }
+        }
+    }
+
+    # 파일 목록을 먼저 정렬·자른 뒤 파싱한다 — worktree 40개 분량 json 을 다 파싱하고
+    # 12개로 자르는 건 낭비다.
+    $files = @()
+    foreach ($r in $roots.Values) {
+        $dir = Join-Path $r ".dev\harness\runs"
+        if (-not (Test-Path $dir)) { continue }
+        foreach ($f in @(Get-ChildItem -Path $dir -File -Filter "*.json" -ErrorAction SilentlyContinue)) {
+            $files += [pscustomobject]@{ File = $f; RunRoot = $r }
+        }
+    }
+    $files = @($files | Sort-Object { $_.File.LastWriteTime } -Descending)
+    if ($Limit -gt 0) { $files = @($files | Select-Object -First $Limit) }
+
+    return @($files | ForEach-Object {
+        try {
+            $rec = Get-Content -Raw $_.File.FullName | ConvertFrom-Json
+            # 레코드의 log·runner 는 **자기 worktree** 기준 상대경로다. 어디서 왔는지 달아 두지
+            # 않으면 남의 레코드를 `Join-Path $Root` 로 풀어 없는 파일을 가리킨다.
+            $rec | Add-Member -NotePropertyName _root -NotePropertyValue $_.RunRoot -Force
+            $rec
+        } catch {
+            $null
+        }
+    } | Where-Object { $_ -ne $null })
+}
+
+# 레코드가 온 체크아웃. 옛 레코드(_root 없음)는 현재 root 로 폴백한다.
+function Get-RunRecordRoot {
+    param([Parameter(Mandatory = $true)] $Record)
+    if ($Record._root) { return $Record._root }
+    return $Root
+}
+
 # 2026-08-08: pid 만 보고 "살아 있다"고 판정하면 **PID 재사용에 속는다.**
 #   실측 — 12:44 에 죽은 런의 pid 47936 이 15:08 에 시작한 node_repl 로 재사용돼
 #   `tasks` 가 [running] 을 찍었다. 그대로 죽였으면 남의 프로세스를 죽였다.
@@ -963,18 +1025,20 @@ exit `$code
 }
 
 function Invoke-Tasks {
-    $records = Get-RunRecords
+    # 격리 worktree 로 옮겨 도는 런까지 본다 — 아니면 본체에서 `tasks` 를 쳐도 안 보인다.
+    $records = Get-AllRunRecords -Limit 12
     Write-Host "Runs:"
     if ($records.Count -eq 0) {
         Write-Host "  (none)"
         return
     }
 
-    foreach ($record in $records | Select-Object -First 12) {
+    foreach ($record in $records) {
         # pid 생존만 보면 PID 재사용에 속는다 — Test-RunAlive 가 시작시각까지 대조한다.
         $running = Test-RunAlive $record
 
-        $logPath = Join-Path $Root ($record.log -replace "/", "\")
+        $recordRoot = Get-RunRecordRoot $record
+        $logPath = Join-Path $recordRoot ($record.log -replace "/", "\")
         $exitCode = Get-RunExitCode -LogPath $logPath
         $state = if ($running) {
             "running"
@@ -989,7 +1053,13 @@ function Invoke-Tasks {
             "failed:$exitCode"
         }
 
-        Write-Host ("  - {0} [{1}] pid={2} phase={3}" -f $record.id, $state, $record.pid, $record.phase)
+        # 남의 체크아웃 런은 어디 것인지 보여야 한다 — 안 그러면 `tail`·`stop` 을 엉뚱한 폴더에서 친다.
+        $where = if ([string]::Equals($recordRoot, $Root, [System.StringComparison]::OrdinalIgnoreCase)) {
+            ""
+        } else {
+            " wt={0}" -f (Split-Path -Leaf $recordRoot)
+        }
+        Write-Host ("  - {0} [{1}] pid={2} phase={3}{4}" -f $record.id, $state, $record.pid, $record.phase, $where)
         if ($record.reason) { Write-Host ("    reason: {0}" -f $record.reason) }
         Write-Host ("    log: {0}" -f $record.log)
     }
@@ -1046,7 +1116,9 @@ function Invoke-Tail {
     Apply-RepoOption $opts
     $query = if ($parsed.Positionals.Count -gt 0) { $parsed.Positionals[0] } else { $null }
     $lines = if ($opts["Lines"]) { [int]$opts["Lines"] } else { 80 }
-    $records = Get-RunRecords
+    # tasks 와 같은 시야여야 한다 — 목록에 보이는 런을 tail 이 못 찾으면 안 된다.
+    # (query 로 걸러야 하니 여기선 자르지 않는다.)
+    $records = Get-AllRunRecords
     if ($records.Count -eq 0) { throw "No background runs found." }
 
     $record = $null
@@ -1066,9 +1138,9 @@ function Invoke-Tail {
         $record = $matches[0]
     }
 
-    $logPath = Join-Path $Root ($record.log -replace "/", "\")
-    if (-not (Test-Path $logPath)) { throw "Log not found: $($record.log)" }
-    Write-Host ("Log: {0}" -f $record.log)
+    $logPath = Join-Path (Get-RunRecordRoot $record) ($record.log -replace "/", "\")
+    if (-not (Test-Path $logPath)) { throw "Log not found: $logPath" }
+    Write-Host ("Log: {0}" -f $logPath)
     Get-Content -Path $logPath -Tail $lines
 }
 
