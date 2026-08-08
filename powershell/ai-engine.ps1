@@ -868,7 +868,6 @@ function Invoke-Go {
         #    끌려가 **오늘 걷어낸 `.claude/commands/` 12개를 되살리는 diff** 를 만들었다.
         #    런은 exit 0 로 「성공」했다 — 조용한 낭비다.
         if (-not $opts["NoBranch"]) { $fwd += "-NoBranch" }
-        if (-not $opts["NoBranch"]) { $fwd += "-NoBranch" }
 
         # ⚠️ Set-RepoRoot 가 Set-Location 을 한다 — 자기 재호출은 같은 프로세스라
         #    돌아온 뒤 **호출자의 CWD 가 새 worktree 에 남는다.** 그러면 이어지는 `.\ai.ps1` 이

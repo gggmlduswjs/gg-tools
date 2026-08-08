@@ -71,7 +71,10 @@ function devr {
         if ($sid -and $cwd -and $title) { break }
       }
       if ($sid -and $cwd) {
-        $t = ($title ?? $utext ?? (Split-Path $cwd -Leaf)) -replace '\s+', ' '
+        $t = $title
+        if ([string]::IsNullOrWhiteSpace($t)) { $t = $utext }
+        if ([string]::IsNullOrWhiteSpace($t)) { $t = Split-Path $cwd -Leaf }
+        $t = $t -replace '\s+', ' '
         if ($t.Length -gt 50) { $t = $t.Substring(0, 50) + '…' }
         [pscustomobject]@{ Time = $f.LastWriteTime; Cwd = $cwd; Sid = $sid; Title = $t.Trim() }
       }
