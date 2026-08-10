@@ -7,12 +7,30 @@
 #   dev           → 사용법
 #   (이름 생략 시 자동 명명. 기존 worktree 이름이면 재사용.)
 #
-# 프로젝트 위치: 기본 = <사용자>\Desktop 아래 bookmart / Coupang_v2 (형제 폴더).
-# 다른 경로에 두는 PC면 프로필/환경에서 $env:DEV_PROJECTS 에 상위폴더를 지정.
+# 프로젝트 위치: 기본 = <사용자>\Desktop\북마트\bookmart / <사용자>\Desktop\쿠팡\Coupang_v2.
+# 다른 경로에 두는 PC면 $env:BOOKMART_ROOT / $env:COUPANG_ROOT 를 직접 지정.
+# 레거시처럼 한 상위폴더 아래 bookmart / Coupang_v2 를 둘 때만 $env:DEV_PROJECTS 를 쓴다.
 
-$base = if ($env:DEV_PROJECTS) { $env:DEV_PROJECTS } else { Join-Path $env:USERPROFILE 'Desktop' }
-$Global:BookmartRoot = Join-Path $base 'bookmart'
-$Global:CoupangRoot  = Join-Path $base 'Coupang_v2'
+$desktop = Join-Path $env:USERPROFILE 'Desktop'
+if ($env:BOOKMART_ROOT) {
+  $Global:BookmartRoot = $env:BOOKMART_ROOT
+}
+elseif ($env:DEV_PROJECTS) {
+  $Global:BookmartRoot = Join-Path $env:DEV_PROJECTS 'bookmart'
+}
+else {
+  $Global:BookmartRoot = Join-Path (Join-Path $desktop '북마트') 'bookmart'
+}
+
+if ($env:COUPANG_ROOT) {
+  $Global:CoupangRoot = $env:COUPANG_ROOT
+}
+elseif ($env:DEV_PROJECTS) {
+  $Global:CoupangRoot = Join-Path $env:DEV_PROJECTS 'Coupang_v2'
+}
+else {
+  $Global:CoupangRoot = Join-Path (Join-Path $desktop '쿠팡') 'Coupang_v2'
+}
 
 function dev {
   param([string]$proj, [string]$name)
