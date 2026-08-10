@@ -100,6 +100,15 @@ function Get-RepoRelativePath {
     return $full
 }
 
+function Resolve-RepoPath {
+    param([Parameter(Mandatory = $true)][string] $Path)
+
+    if ([System.IO.Path]::IsPathRooted($Path)) {
+        return [System.IO.Path]::GetFullPath($Path)
+    }
+    return [System.IO.Path]::GetFullPath((Join-Path $Root ($Path -replace "/", "\")))
+}
+
 function Convert-ToSlug {
     param([Parameter(Mandatory = $true)][string] $Text)
     $slug = $Text -replace "_", "-"
@@ -461,8 +470,12 @@ function Ensure-Phase {
     }
 
     $phaseDir = Join-Path $PhasesDir $Phase
-    if ((Test-Path $phaseDir) -and -not $Force) {
-        return $Phase
+    if ((Test-Path -LiteralPath $phaseDir -PathType Container) -and -not $Force) {
+        if (Test-PhaseRunnable $phaseDir) {
+            return $Phase
+        }
+        Write-Warning "Phase '$Phase' exists but is not runnable (missing/unreadable index.json or step*.md). Regenerating with --force."
+        $Force = $true
     }
 
     $args = @(".dev\harness\plan_to_phase.py", (Get-RepoRelativePath $PlanPath), "--phase", $Phase)
@@ -472,6 +485,54 @@ function Ensure-Phase {
     & python @args | Out-Host
     if ($LASTEXITCODE -ne 0) { throw "plan_to_phase failed" }
     return $Phase
+}
+
+function Test-PhaseRunnable {
+    param([Parameter(Mandatory = $true)][string] $PhaseDir)
+
+    if (-not (Test-Path -LiteralPath $PhaseDir -PathType Container)) { return $false }
+
+    $indexPath = Join-Path $PhaseDir "index.json"
+    if (-not (Test-Path -LiteralPath $indexPath -PathType Leaf)) { return $false }
+
+    try {
+        $index = Get-Content -Raw -LiteralPath $indexPath -Encoding UTF8 | ConvertFrom-Json
+    } catch {
+        return $false
+    }
+
+    $steps = @($index.steps | Where-Object { $null -ne $_ })
+    if ($steps.Count -eq 0) { return $false }
+
+    foreach ($step in $steps) {
+        $stepNum = $step.step
+        if ($null -eq $stepNum) { return $false }
+        $stepPath = Join-Path $PhaseDir ("step{0}.md" -f [int]$stepNum)
+        if (-not (Test-Path -LiteralPath $stepPath -PathType Leaf)) { return $false }
+    }
+
+    return $true
+}
+
+function Get-PlanReferencedInputFiles {
+    param([Parameter(Mandatory = $true)][string] $PlanPath)
+
+    if (-not (Test-Path -LiteralPath $PlanPath -PathType Leaf)) { return @() }
+
+    $text = Get-Content -Raw -LiteralPath $PlanPath -Encoding UTF8
+    $seen = @{}
+    $files = New-Object System.Collections.Generic.List[string]
+
+    foreach ($match in [regex]::Matches($text, '([.]dev[\\/]+research[\\/][^\s)]+?\.md)')) {
+        $rel = $match.Groups[1].Value -replace "/", "\"
+        $full = Resolve-RepoPath $rel
+        if ((Test-Path -LiteralPath $full -PathType Leaf) -and -not $seen.ContainsKey($full)) {
+            $seen[$full] = $true
+            $files.Add($full) | Out-Null
+        }
+    }
+
+    return @($files.ToArray())
 }
 
 function Invoke-Run {
@@ -914,6 +975,13 @@ function Invoke-Go {
             New-Item -ItemType Directory -Force -Path (Split-Path -Parent $planDst) | Out-Null
             Copy-Item $plan $planDst -Force
             $carried += $planRel
+        }
+        foreach ($inputFile in @(Get-PlanReferencedInputFiles -PlanPath $plan)) {
+            $inputRel = Get-RepoRelativePath $inputFile
+            $inputDst = Join-Path $wtRoot ($inputRel -replace "/", "\")
+            New-Item -ItemType Directory -Force -Path (Split-Path -Parent $inputDst) | Out-Null
+            Copy-Item $inputFile $inputDst -Force
+            $carried += $inputRel
         }
         if ($carried.Count -gt 0) { Write-Host ("  실어 보냄(커밋 안 된 입력): {0}" -f ($carried -join ", ")) }
 
