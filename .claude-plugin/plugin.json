@@ -1,7 +1,7 @@
 {
   "name": "gg-harness",
-  "version": "1.4.0",
-  "description": "북마트·쿠팡 운영을 위한 Claude Code plugin. 계획·진단·검증 skills 14개(karpathy-guidelines 포함)와 slash commands 4개를 배포한다. 전역 CLAUDE.md, PowerShell 프로필, worktree 런처, 하네스 실행 커맨드, PC별 hooks/settings, 프로젝트별 secret/MCP 인증은 포함하지 않는다.",
+  "version": "1.5.0",
+  "description": "북마트·쿠팡 공용 Claude Code plugin. skills 14개 + slash /harness·/review. 실행기·전역 settings·ai.ps1·프로젝트 secret은 포함하지 않는다.",
   "author": {
     "name": "gggmlduswjs",
     "url": "https://github.com/gggmlduswjs"
@@ -9,7 +9,7 @@
   "homepage": "https://github.com/gggmlduswjs/claude",
   "repository": "https://github.com/gggmlduswjs/claude",
   "keywords": [
-    "planning",
+    "harness",
     "code-audit",
     "production-readiness",
     "ai-readiness",

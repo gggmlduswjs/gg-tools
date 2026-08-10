@@ -10,8 +10,8 @@
     {
       "name": "gg-harness",
       "source": "./",
-      "version": "1.4.0",
-      "description": "계획·진단·검증 skills 14개(karpathy-guidelines 포함)와 slash commands 4개. 전역 CLAUDE.md, PowerShell 프로필, worktree 런처, 하네스 실행 커맨드, PC별 hooks/settings, 프로젝트별 secret/MCP 인증은 포함하지 않는다.",
+      "version": "1.5.0",
+      "description": "skills 14개 + slash /harness·/review. 실행기·전역 CLAUDE.md·ai.ps1·프로젝트 secret/MCP는 포함하지 않는다.",
       "category": "productivity"
     }
   ]

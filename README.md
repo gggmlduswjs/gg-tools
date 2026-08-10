@@ -6,27 +6,22 @@ Claude Code plugin source. 이 레포는 **플러그인 자산만** 담는다.
 
 - `.claude-plugin/` — plugin/marketplace manifest
 - `skills/` — 계획·진단·검증·행동 스킬 14개
-- `commands/` — slash command 4개(`/기획`, `/plan`, `/운영준비`, `/production-readiness`)
+- `commands/` — slash command 2개(`/harness`, `/review`)
+- `hooks/tdd_guard.py` — TDD 가드 **엔진**(각 레포 shim이 호출)
 - `README.md` — 설치와 운영 기준
 
 ## 포함하지 않는 것
 
-다음은 PC별 개인 설정이거나 헷갈림이 큰 자동화라 이 레포와 GitHub plugin 패키지에서 뺐다.
-
-- `install.ps1`
-- 전역 `CLAUDE.md`, `settings.json`, statusline 파일
-- PowerShell profile/dev launcher/worktree helper
-- 전역 hooks, token/cost/touch log scripts
-- 프로젝트별 `.vscode`/git hook 배선
-- 하네스 실행/상태/review-loop slash command
+- `install.ps1`, 전역 `CLAUDE.md`/`settings.json`/statusline
+- PowerShell profile/dev launcher/worktree helper/`ai.ps1` 엔진
+- 전역 hooks(그 외), token/cost/touch log scripts
+- 프로젝트별 `.vscode`/git hook 배선 · `settings.json` 훅 목록
+- **실행기** `execute.py` — 각 레포 `.dev/harness/execute.py`에 둔다(커밋/push 안 함)
 - 프로젝트별 secret, MCP 인증, 운영 DB project ref
 - 디자인/강의/문서변환/외부서비스용 실험 skill
-
-필요하면 로컬 PC나 별도 plugin에서 따로 관리한다. `gg-harness`에는 매일 쓸 핵심만 둔다.
+- 얇은 래퍼 slash(`/기획`·`/plan`·`/운영준비` 등) — 스킬을 직접 쓴다
 
 ## 설치
-
-Claude Code 안에서 한 줄씩 실행한다.
 
 ```text
 /plugin marketplace add gggmlduswjs/claude
@@ -41,10 +36,18 @@ Claude Code 안에서 한 줄씩 실행한다.
 
 ## 역할 분리
 
-- 개인 기본값: `C:\Users\user\.claude\CLAUDE.md`
-- 프로젝트 규칙: 각 프로젝트의 `CLAUDE.md` / `AGENTS.md`
-- 재사용 자산: 이 레포의 공용 `skills/`와 slash `commands/`
-- worktree/harness/PowerShell 런처: 사용자가 명시했을 때만 쓰는 로컬 고급 도구
+| 층 | 자리 | 예 |
+|---|---|---|
+| 개인 기본 | `~/.claude/` | 개인 CLAUDE.md, 모니터 훅 |
+| 회사 공용 | 이 플러그인 | `/harness` `/review`, grilling, code-review-7p, tdd 엔진 |
+| 프로젝트 | 각 레포 | `CLAUDE.md`, `.dev/harness/execute.py`, 도메인 훅/스킬/agents |
+
+bookmart와 Coupang_v2는 **같은 UX**(`/harness`·`/review`·얇은 execute)를 쓰고, 안전 규칙·도메인 가드만 레포에 남긴다.
+
+## 공용 slash commands
+
+- `/harness <작업>` — phase/step 설계. 승인 전 구현 금지. 실행은 `python .dev/harness/execute.py <task>`
+- `/review [범위]` — 문서·운영 안전 관점 읽기 전용 리뷰. 프로젝트 전용 게이트는 그 레포 `CLAUDE.md`를 따른다
 
 ## 남긴 skills
 
@@ -63,18 +66,7 @@ Claude Code 안에서 한 줄씩 실행한다.
 - `harness-eval`
 - `karpathy-guidelines` — [Andrej Karpathy](https://github.com/multica-ai/andrej-karpathy-skills) 행동 가이드 4원칙
 
-## Production readiness
-
-강의 Part 2 Ch03의 5축(성능·보안·데이터 안전·관측성·하네스 품질)은 plugin-level 공용 스킬로 제공한다.
-
-- `/운영준비` 또는 `/production-readiness` — 현재 repo의 5축 자산/빈칸 대조
-- `owasp-security-scan` — 코드 전체 OWASP 점검
-- `supabase-db-advisor-readonly` — 프로젝트 MCP가 있을 때 read-only DB advisor 진단
-- `lighthouse-performance-loop` — 측정 기반 성능 개선 루프
-- `observability-posthog-seo` — PostHog/analytics/SEO 점검
-- `harness-eval` — golden set 기반 하네스 회귀 측정
-
-단, DB ref·OAuth·PostHog key·배포 secret·staging 주소는 각 프로젝트 repo/서비스 설정에 남긴다. 플러그인은 절차와 루브릭만 배포한다.
+운영 준비 5축은 slash 없이 `production-readiness-5axis` 스킬을 직접 호출한다.
 
 ## 개발 규칙
 
