@@ -87,6 +87,7 @@ plugin 규약은 `skills/`·`commands/` 가 **레포 루트**에 있어야 하�
 
 ## 내용
 
+- `운영_워크플로우.md` — Bookmart/Coupang/Claude/Codex/Git/CI/worktree/harness 를 실제 로컬 상태 기준으로 어떻게 시작하고 끝낼지 정한 운영 기준
 - `install.ps1` — 프로필 배선 + `~/.claude` 배치 + 메모리 심링크 + 검증
 - `powershell/dev-profile.ps1` — `dev bm|cp <이름>`(격리 워크트리에서 claude) · `dev r`(세션 이어하기) · `dev clean` · `dev harvest` · `현황`
 - `powershell/wt-engine.ps1` — worktree lifecycle **공용 엔진**. bookmart `bmwt.ps1` · Coupang `wt.ps1` · `devclean` 이 전부 이걸 부른다(2026-07-28 3벌 → 1벌 통합)
