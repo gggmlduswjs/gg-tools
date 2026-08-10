@@ -37,6 +37,16 @@
 | **code-review-7p** | 변경분을 정확성·보안·단순함·가독성·에러처리·성능·테스트 7관점으로 리뷰한다 |
 | **owasp-security-scan** | 레포 전체를 OWASP Top 10 2025 기준으로 스캔한다 |
 
+## 세컨드 브레인 위키 (LMN / agentic-eng 볼트)
+
+`WIKI_SCHEMA.md` + `wiki/`가 있는 위키 레포에서만 쓴다. 출처: [jha0313/agentic-eng-plugin](https://github.com/jha0313/agentic-eng-plugin).
+
+| 스킬 | 뭘 하나 | slash |
+|---|---|---|
+| **wiki-ingest** | raw 소스를 위키에 병합·교차링크·index/log 갱신 | `/wiki-ingest` |
+| **wiki-lint** | 모순·고아·깨진 링크·방치 stub 건강검진 | `/wiki-lint` |
+| **wiki-query** | 위키에 질문 → 인용 붙인 종합 답변 | `/wiki-query` |
+
 ## 행동 (코딩 실수 방지)
 
 | 스킬 | 뭘 하나 |

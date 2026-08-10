@@ -1,7 +1,7 @@
 {
   "name": "gg-harness",
-  "version": "1.5.0",
-  "description": "북마트·쿠팡 공용 Claude Code plugin. skills 14개 + slash /harness·/review. 실행기·전역 settings·ai.ps1·프로젝트 secret은 포함하지 않는다.",
+  "version": "1.6.0",
+  "description": "북마트·쿠팡 공용 Claude Code plugin. harness/review + wiki(ingest/lint/query) + 진단·검증 skills. 실행기·전역 settings·프로젝트 secret은 포함하지 않는다.",
   "author": {
     "name": "gggmlduswjs",
     "url": "https://github.com/gggmlduswjs"
@@ -10,6 +10,8 @@
   "repository": "https://github.com/gggmlduswjs/claude",
   "keywords": [
     "harness",
+    "wiki",
+    "second-brain",
     "code-audit",
     "production-readiness",
     "ai-readiness",
