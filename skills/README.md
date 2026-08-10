@@ -2,7 +2,7 @@
 
 `gg-harness` plugin에 포함되는 핵심 스킬 목록이다. 이 폴더는 plugin package의 정본이며, 설치는 루트 README의 `/plugin marketplace add` + `/plugin install gg-harness@gg-harness` 흐름을 따른다.
 
-이 plugin은 더 이상 디자인, 강의 변환, 회의록, Supabase MCP, 하네스 실행기, 로컬 PC 배선을 싣지 않는다. 그런 것은 필요할 때 별도 plugin이나 프로젝트 로컬 도구로 관리한다.
+이 plugin은 더 이상 디자인, 강의 변환, 회의록, 하네스 실행기, 로컬 PC 배선을 싣지 않는다. 프로젝트별 secret, MCP 인증, 운영 DB project ref는 plugin에 넣지 않고 각 repo/local 설정에 둔다.
 
 ## 계획
 
@@ -19,6 +19,16 @@
 | **ai-readiness-cartography** | 레포가 agent-friendly 한지 100점 채점 | HTML 대시보드 + ROI 액션 |
 | **harness-audit** | 작업 환경 6축의 빈 칸과 썩은 자산을 찾는다 | 판정표 + 다음 액션 |
 | **improve-token-efficiency** | Claude Code 세션 로그에서 토큰/컨텍스트 낭비를 찾는다 | HTML 대시보드 + 절감안 |
+
+## Production readiness
+
+| 스킬 | 뭘 하나 |
+|---|---|
+| **production-readiness-5axis** | 성능·보안·데이터 안전·관측성·하네스 품질 5축으로 현재 repo를 대조한다 |
+| **supabase-db-advisor-readonly** | Supabase MCP `get_advisors`를 read-only로 진단하고 마이그레이션 경로만 제안한다 |
+| **lighthouse-performance-loop** | Lighthouse/Core Web Vitals 측정 -> 병목 Top 3 -> 재측정 루프를 만든다 |
+| **observability-posthog-seo** | PostHog error/analytics와 SEO 기본 자산을 점검한다 |
+| **harness-eval** | 스킬·slash command·CLAUDE.md 회귀를 golden set으로 측정한다 |
 
 ## 검증
 
