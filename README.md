@@ -1,26 +1,27 @@
 # gg-harness
 
-Claude Code plugin source. 이 레포는 이제 **플러그인 자산만** 담는다.
+Claude Code plugin source. 이 레포는 **플러그인 자산만** 담는다.
 
 ## 포함하는 것
 
 - `.claude-plugin/` — plugin/marketplace manifest
-- `skills/` — 재사용 가능한 스킬
-- `commands/` — Claude slash command
+- `skills/` — 핵심 스킬 8개
+- `commands/` — 계획용 slash command 2개(`/기획`, `/plan`)
 - `README.md` — 설치와 운영 기준
 
 ## 포함하지 않는 것
 
-다음은 PC별 개인 설정이라 이 레포와 GitHub plugin 패키지에서 뺐다.
+다음은 PC별 개인 설정이거나 헷갈림이 큰 자동화라 이 레포와 GitHub plugin 패키지에서 뺐다.
 
 - `install.ps1`
-- `home/CLAUDE.md`, `home/settings.json`, statusline 파일
+- 전역 `CLAUDE.md`, `settings.json`, statusline 파일
 - PowerShell profile/dev launcher/worktree helper
 - 전역 hooks, token/cost/touch log scripts
 - 프로젝트별 `.vscode`/git hook 배선
-- 새 PC 체크리스트와 로컬 운영 메모
+- 하네스 실행/상태/review-loop slash command
+- 디자인/강의/문서변환/외부서비스용 실험 skill
 
-필요하면 로컬 PC에만 따로 둔다. plugin repo에 다시 넣지 않는다.
+필요하면 로컬 PC나 별도 plugin에서 따로 관리한다. `gg-harness`에는 매일 쓸 핵심만 둔다.
 
 ## 설치
 
@@ -41,8 +42,19 @@ Claude Code 안에서 한 줄씩 실행한다.
 
 - 개인 기본값: `C:\Users\user\.claude\CLAUDE.md`
 - 프로젝트 규칙: 각 프로젝트의 `CLAUDE.md` / `AGENTS.md`
-- 재사용 자산: 이 레포의 `skills/`와 `commands/`
+- 재사용 자산: 이 레포의 핵심 `skills/`와 계획용 `commands/`
 - worktree/harness/PowerShell 런처: 사용자가 명시했을 때만 쓰는 로컬 고급 도구
+
+## 남긴 skills
+
+- `grilling`
+- `domain-modeling`
+- `product-spec-kit`
+- `ai-readiness-cartography`
+- `harness-audit`
+- `improve-token-efficiency`
+- `code-review-7p`
+- `owasp-security-scan`
 
 ## 개발 규칙
 

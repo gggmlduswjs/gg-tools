@@ -10,7 +10,6 @@ Important:
 - Do not run tests or formatters.
 - Do not use `git add`, `git commit`, or `git push`.
 - First invoke the plugin skill `grilling` with the same `$ARGUMENTS`; if it is not available, stop and report that the plugin skill is not loaded.
-  (Not `grill-me` — that one sets `disable-model-invocation: true`, so the model cannot invoke it and this command was structurally unsatisfiable. `grilling` is the body it delegates to.)
 - Produce or update `.dev/plans/{fe|be|arch}/<task>_plan.md`.
-- Include complete `## Grill-me 결과` and `## Codex 인수인계` sections.
-- End with `/실행 <plan-name>`, not raw PowerShell.
+- Include complete `## Grilling 결과` and `## Codex 인수인계` sections.
+- End with the plan path and a one-line Codex handoff request, not a background harness command.
