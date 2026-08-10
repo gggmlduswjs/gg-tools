@@ -37,6 +37,12 @@
 | **code-review-7p** | 변경분을 정확성·보안·단순함·가독성·에러처리·성능·테스트 7관점으로 리뷰한다 |
 | **owasp-security-scan** | 레포 전체를 OWASP Top 10 2025 기준으로 스캔한다 |
 
+## 행동 (코딩 실수 방지)
+
+| 스킬 | 뭘 하나 |
+|---|---|
+| **karpathy-guidelines** | Andrej Karpathy 4원칙 — 가정 명시·최소 코드·수술적 diff·검증 가능한 완료 조건 ([multica-ai/andrej-karpathy-skills](https://github.com/multica-ai/andrej-karpathy-skills)) |
+
 ## 원칙
 
 1. 같은 일을 하는 스킬을 여러 개 두지 않는다.

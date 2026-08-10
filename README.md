@@ -5,7 +5,7 @@ Claude Code plugin source. 이 레포는 **플러그인 자산만** 담는다.
 ## 포함하는 것
 
 - `.claude-plugin/` — plugin/marketplace manifest
-- `skills/` — 계획·진단·검증 스킬 13개
+- `skills/` — 계획·진단·검증·행동 스킬 14개
 - `commands/` — slash command 4개(`/기획`, `/plan`, `/운영준비`, `/production-readiness`)
 - `README.md` — 설치와 운영 기준
 
@@ -61,6 +61,7 @@ Claude Code 안에서 한 줄씩 실행한다.
 - `lighthouse-performance-loop`
 - `observability-posthog-seo`
 - `harness-eval`
+- `karpathy-guidelines` — [Andrej Karpathy](https://github.com/multica-ai/andrej-karpathy-skills) 행동 가이드 4원칙
 
 ## Production readiness
 
