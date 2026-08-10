@@ -17,7 +17,9 @@
 
 [CmdletBinding()]
 param(
-  [switch] $Apply
+  [switch] $Apply,
+  [ValidateSet('All', 'Bookmart', 'Coupang')]
+  [string] $Project = 'All'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -77,7 +79,20 @@ function Move-ProjectDir([string]$Name, [string]$Source, [string]$Dest, [string]
   $dstExists = Test-Path -LiteralPath $Dest
   if ($srcExists -and $dstExists) { throw "대상과 원본이 둘 다 있다: $Source / $Dest" }
   if ($srcExists) {
-    Invoke-Step "move $Name`: $Source -> $Dest" { Move-Item -LiteralPath $Source -Destination $Dest }
+    Invoke-Step "move $Name`: $Source -> $Dest" {
+      try {
+        Move-Item -LiteralPath $Source -Destination $Dest
+      }
+      catch {
+        $hint = @(
+          "폴더가 사용 중이라 이동 실패: $Source",
+          "닫을 것: 해당 폴더를 연 Codex task, Claude, VS Code, PowerShell/터미널, runserver/test 프로세스",
+          "Bookmart가 현재 Codex workspace라면 이 Codex task 자체를 닫아야 이동된다.",
+          "Coupang만 먼저 옮기려면: pwsh C:\Users\user\claude\powershell\relocate-projects.ps1 -Apply -Project Coupang"
+        )
+        throw (($hint -join "`n") + "`n원본 오류: $($_.Exception.Message)")
+      }
+    }
   }
   elseif ($dstExists) {
     Write-Host "OK   already moved $Name`: $Dest" -ForegroundColor DarkGreen
@@ -132,43 +147,58 @@ $newCpMain = Join-Path $cpContainer 'Coupang_v2'
 $newCpWt = Join-Path $cpContainer 'Coupang_v2-wt'
 
 Write-Host "Mode: $(if ($Apply) { 'APPLY' } else { 'DRY RUN' })"
+Write-Host "Project: $Project"
 Write-Host "Bookmart: $oldBmMain -> $newBmMain"
 Write-Host "Coupang : $oldCpMain -> $newCpMain"
 Write-Host ""
 
-$oldSafe = @($oldBmMain, $oldBmWt, $oldCpMain, $oldCpWt) +
-  (Get-WorktreePaths $oldBmMain) +
-  (Get-WorktreePaths $oldCpMain)
+$doBookmart = $Project -in @('All', 'Bookmart')
+$doCoupang = $Project -in @('All', 'Coupang')
+
+$oldSafe = @()
+if ($doBookmart) { $oldSafe += @($oldBmMain, $oldBmWt) + (Get-WorktreePaths $oldBmMain) }
+if ($doCoupang) { $oldSafe += @($oldCpMain, $oldCpWt) + (Get-WorktreePaths $oldCpMain) }
 
 Invoke-Step "ensure container $bmContainer" { New-Item -ItemType Directory -Force -Path $bmContainer | Out-Null }
 Invoke-Step "ensure container $cpContainer" { New-Item -ItemType Directory -Force -Path $cpContainer | Out-Null }
 
-Move-ProjectDir 'bookmart' $oldBmMain $newBmMain $bmContainer
-Move-ProjectDir 'bookmart-wt' $oldBmWt $newBmWt $bmContainer
-Move-ProjectDir 'Coupang_v2' $oldCpMain $newCpMain $cpContainer
-Move-ProjectDir 'Coupang_v2-wt' $oldCpWt $newCpWt $cpContainer
+if ($doBookmart) {
+  Move-ProjectDir 'bookmart' $oldBmMain $newBmMain $bmContainer
+  Move-ProjectDir 'bookmart-wt' $oldBmWt $newBmWt $bmContainer
+}
+if ($doCoupang) {
+  Move-ProjectDir 'Coupang_v2' $oldCpMain $newCpMain $cpContainer
+  Move-ProjectDir 'Coupang_v2-wt' $oldCpWt $newCpWt $cpContainer
+}
 
-Repair-Worktrees $newBmMain $newBmWt
-Repair-Worktrees $newCpMain $newCpWt
+if ($doBookmart) { Repair-Worktrees $newBmMain $newBmWt }
+if ($doCoupang) { Repair-Worktrees $newCpMain $newCpWt }
 
 foreach ($p in ($oldSafe | Where-Object { $_ } | ForEach-Object { GitPath $_ } | Select-Object -Unique)) {
   Remove-SafeDirectory $p
 }
 
-$newSafe = @($newBmMain, $newCpMain) +
-  (Get-WorktreePaths $newBmMain) +
-  (Get-WorktreePaths $newCpMain)
+$newSafe = @()
+if ($doBookmart) { $newSafe += @($newBmMain) + (Get-WorktreePaths $newBmMain) }
+if ($doCoupang) { $newSafe += @($newCpMain) + (Get-WorktreePaths $newCpMain) }
 foreach ($p in ($newSafe | Where-Object { $_ } | ForEach-Object { GitPath $_ } | Select-Object -Unique)) {
   Add-SafeDirectory $p
 }
 
-$pathPairs = @(
+$bookmartPathPairs = @(
+  [pscustomobject]@{ From = '$HOME\Desktop\bookmart-wt'; To = '$HOME\Desktop\북마트\bookmart-wt' },
+  [pscustomobject]@{ From = '$HOME\Desktop\bookmart'; To = '$HOME\Desktop\북마트\bookmart' },
   [pscustomobject]@{ From = 'C:\Users\user\Desktop\bookmart-wt'; To = 'C:\Users\user\Desktop\북마트\bookmart-wt' },
   [pscustomobject]@{ From = 'C:/Users/user/Desktop/bookmart-wt'; To = 'C:/Users/user/Desktop/북마트/bookmart-wt' },
   [pscustomobject]@{ From = 'C:\Users\user\Desktop\bookmart'; To = 'C:\Users\user\Desktop\북마트\bookmart' },
   [pscustomobject]@{ From = 'C:/Users/user/Desktop/bookmart'; To = 'C:/Users/user/Desktop/북마트/bookmart' },
   [pscustomobject]@{ From = 'c:\users\user\desktop\bookmart-wt'; To = 'c:\users\user\desktop\북마트\bookmart-wt' },
-  [pscustomobject]@{ From = 'c:\users\user\desktop\bookmart'; To = 'c:\users\user\desktop\북마트\bookmart' },
+  [pscustomobject]@{ From = 'c:\users\user\desktop\bookmart'; To = 'c:\users\user\desktop\북마트\bookmart' }
+)
+
+$coupangPathPairs = @(
+  [pscustomobject]@{ From = '$HOME\Desktop\Coupang_v2-wt'; To = '$HOME\Desktop\쿠팡\Coupang_v2-wt' },
+  [pscustomobject]@{ From = '$HOME\Desktop\Coupang_v2'; To = '$HOME\Desktop\쿠팡\Coupang_v2' },
   [pscustomobject]@{ From = 'C:\Users\user\Desktop\Coupang_v2-wt'; To = 'C:\Users\user\Desktop\쿠팡\Coupang_v2-wt' },
   [pscustomobject]@{ From = 'C:/Users/user/Desktop/Coupang_v2-wt'; To = 'C:/Users/user/Desktop/쿠팡/Coupang_v2-wt' },
   [pscustomobject]@{ From = 'C:\Users\user\Desktop\Coupang_v2'; To = 'C:\Users\user\Desktop\쿠팡\Coupang_v2' },
@@ -177,9 +207,17 @@ $pathPairs = @(
   [pscustomobject]@{ From = 'c:\users\user\desktop\coupang_v2'; To = 'c:\users\user\desktop\쿠팡\coupang_v2' }
 )
 
+$pathPairs = @()
+if ($doBookmart) { $pathPairs += $bookmartPathPairs }
+if ($doCoupang) { $pathPairs += $coupangPathPairs }
+
 Replace-InFile (Join-Path $env:USERPROFILE '.codex\config.toml') $pathPairs
 Replace-InFile (Join-Path $env:USERPROFILE '.claude\settings.json') $pathPairs
 Replace-InFile (Join-Path $env:USERPROFILE 'claude\powershell\dev-profile.ps1') $pathPairs
+Replace-InFile (Join-Path $env:USERPROFILE 'Documents\PowerShell\profile.ps1') $pathPairs
+Replace-InFile (Join-Path $env:USERPROFILE 'Documents\PowerShell\Microsoft.PowerShell_profile.ps1') $pathPairs
+Replace-InFile (Join-Path $env:USERPROFILE 'Documents\WindowsPowerShell\profile.ps1') $pathPairs
+Replace-InFile (Join-Path $env:USERPROFILE 'Documents\WindowsPowerShell\Microsoft.PowerShell_profile.ps1') $pathPairs
 
 Write-Host ""
 if ($Apply) {
