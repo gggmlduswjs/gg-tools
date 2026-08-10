@@ -12,24 +12,26 @@
 # 레거시처럼 한 상위폴더 아래 bookmart / Coupang_v2 를 둘 때만 $env:DEV_PROJECTS 를 쓴다.
 
 $desktop = Join-Path $env:USERPROFILE 'Desktop'
-if ($env:BOOKMART_ROOT) {
-  $Global:BookmartRoot = $env:BOOKMART_ROOT
-}
-elseif ($env:DEV_PROJECTS) {
-  $Global:BookmartRoot = Join-Path $env:DEV_PROJECTS 'bookmart'
-}
-else {
-  $Global:BookmartRoot = Join-Path (Join-Path $desktop '북마트') 'bookmart'
+function Resolve-DevRoot([string]$EnvValue, [string]$NewDefault, [string]$LegacyDefault) {
+  if ($EnvValue) { return $EnvValue }
+  if (Test-Path $NewDefault) { return $NewDefault }
+  if (Test-Path $LegacyDefault) { return $LegacyDefault }
+  return $NewDefault
 }
 
-if ($env:COUPANG_ROOT) {
-  $Global:CoupangRoot = $env:COUPANG_ROOT
-}
-elseif ($env:DEV_PROJECTS) {
+if ($env:DEV_PROJECTS) {
+  $Global:BookmartRoot = Join-Path $env:DEV_PROJECTS 'bookmart'
   $Global:CoupangRoot = Join-Path $env:DEV_PROJECTS 'Coupang_v2'
 }
 else {
-  $Global:CoupangRoot = Join-Path (Join-Path $desktop '쿠팡') 'Coupang_v2'
+  $Global:BookmartRoot = Resolve-DevRoot `
+    $env:BOOKMART_ROOT `
+    (Join-Path (Join-Path $desktop '북마트') 'bookmart') `
+    (Join-Path $desktop 'bookmart')
+  $Global:CoupangRoot = Resolve-DevRoot `
+    $env:COUPANG_ROOT `
+    (Join-Path (Join-Path $desktop '쿠팡') 'Coupang_v2') `
+    (Join-Path $desktop 'Coupang_v2')
 }
 
 function dev {
