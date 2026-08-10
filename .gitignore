@@ -39,3 +39,7 @@ gitignore_global
 새PC.md
 운영_워크플로우.md
 북마크_레포.md
+
+# shared Claude Code hook engines (bookmart/Coupang shims call these)
+!hooks/
+!hooks/**
