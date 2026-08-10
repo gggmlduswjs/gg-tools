@@ -1,16 +1,18 @@
 # install.ps1 — 이 PC 에 claude 레포를 배선한다(멱등).
 #   새 PC:  gh repo clone gggmlduswjs/claude ~\claude ;  pwsh ~\claude\install.ps1 ;  새 터미널
 #   -Force = 이미 있는 ~\.claude 파일도 덮어씀(기본은 안 건드림 — 그 PC 설정을 날리지 않는다)
+#   -InstallForge = 보류 중인 forge 스킬 4종을 명시적으로 다시 배선
 #
 # 무엇을 어떻게 배치하나:
 #   plugin = 스킬 22종. `/plugin install gggmlduswjs/claude` 로 받는다 — 이 스크립트가 아니다.
-#   심링크 = 한 벌만 존재해야 하는 것(CLAUDE.md·agents) + forge 스킬 4종(별도 레포).
+#   심링크 = 한 벌만 존재해야 하는 것(CLAUDE.md·agents).
+#            forge 스킬 4종은 2026-08-10 부터 명시 옵션(-InstallForge)일 때만 배선.
 #   복사   = Claude Code 가 자주 덮어쓰거나 PC 마다 달라야 하는 것(settings.json 의
 #            permissions.allow 는 경로별). 심링크면 레포가 늘 dirty 하고 PC 끼리 충돌한다.
 #
 # ⚠️ plugin 은 스킬만 나른다. CLAUDE.md·settings.json·git 훅·PowerShell 프로필·메모리
 #    심링크는 plugin 규약에 자리가 없다 → 이 스크립트가 계속 필요하다.
-param([switch]$Force)
+param([switch]$Force, [switch]$InstallForge)
 $ErrorActionPreference = 'Stop'
 $repo   = $PSScriptRoot
 $dotcl  = Join-Path $env:USERPROFILE '.claude'
@@ -18,6 +20,7 @@ $sync   = 'G:\내 드라이브\claude-sync'      # 메모리 전용(두 PC appen
 $marker = '# >>> dotfiles dev launcher >>>'  # ★그대로 둔다 — 배선 여부 판정 열쇠. 바꾸면 중복 배선된다
 # 프로젝트 레포들이 사는 곳. 2.5)·3)·4.5) 가 쓴다 — 첫 사용처보다 앞에 둔다.
 $base = if ($env:DEV_PROJECTS) { $env:DEV_PROJECTS } else { Join-Path $env:USERPROFILE 'Desktop' }
+$installForgeRequested = $InstallForge -or ($env:CLAUDE_INSTALL_FORGE -eq '1')
 
 function Set-Link($link, $target) {
   if (-not (Test-Path $target)) { Write-Host "  [skip] 대상 없음: $target" -Fore Yellow; return }
@@ -114,13 +117,13 @@ try {
     Write-Warning "statusLine 경로 심기 실패(상태줄은 그대로 동작): $($_.Exception.Message)"
 }
 
-# ── 2.5) forge 스킬 4종 (별도 레포라 plugin 에 안 실린다) ───────────────
-# `Desktop/forge` 가 정본이고 이 레포에선 gitignore 다 → plugin 패키지에 포함되지 않는다.
-# 활발히 개발 중이라 복사본이 되면 즉시 반영을 잃는다. 그래서 링크로 남긴다.
-# **이 배선은 예전엔 손으로 만들어져 있었다** — install.ps1 에 없어서 새 PC 엔 forge 가
-# 통째로 없었다(2026-08-06 발견).
+# ── 2.5) forge 스킬 4종 (보류 — 명시 옵션일 때만) ───────────────────────
+# 2026-08-10 운영 분리: forge 는 일상 개발 기본 흐름에서 뺐다.
+# 필요할 때만 `pwsh install.ps1 -InstallForge` 또는 `CLAUDE_INSTALL_FORGE=1` 로 되살린다.
 $forgeSrc = Join-Path $base 'forge\skills'
-if (Test-Path $forgeSrc) {
+if (-not $installForgeRequested) {
+  Write-Host "  [skip] forge 보류: -InstallForge 를 줄 때만 배선" -Fore DarkGray
+} elseif (Test-Path $forgeSrc) {
   $skillDst = Join-Path $dotcl 'skills'
   # plugin 전환 전의 통짜 링크가 남아 있으면 걷어낸다 — 그대로 두면 그 안에 junction 을
   # 만들려다 레포 쪽 skills/ 를 오염시킨다.
@@ -198,7 +201,7 @@ $agentSrc = Join-Path $repo 'home\agents'
 Write-Host ("  {0,-12} {1}" -f 'agents', $(if (Test-Path $agentSrc) { 'OK' } else { '— (레포에 없음)' })) -Fore DarkGray
 # 점폴더는 스킬이 아니다(.git 등). 필터를 빼면 개수가 실제보다 크게 나온다
 $cnt = (Get-ChildItem "$dotcl\skills" -Directory -EA SilentlyContinue | Where-Object Name -notlike '.*').Count
-Write-Host ("  {0,-12} {1}종 (forge — 나머지는 plugin)" -f 'skills', $cnt)
+Write-Host ("  {0,-12} {1}종 (forge 보류 — 나머지는 plugin)" -f 'skills', $cnt)
 # plugin 이 실제로 깔렸는지 — 여기가 비면 스킬 22종이 통째로 없는 것이다.
 # **이 확인이 없으면 "install 성공"이 스킬 없는 환경을 초록으로 덮는다.**
 # 캐시 폴더를 뒤지지 않는다 — 실제 경로가 `cache\gg-harness\gg-harness\1.0.0\...` 라

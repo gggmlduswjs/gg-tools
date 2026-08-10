@@ -42,6 +42,58 @@ function Get-GitValue {
   return ((& git @GitArgs 2>$null) | Select-Object -First 1)
 }
 
+function Get-GitSafePath([string]$path) {
+  return ([System.IO.Path]::GetFullPath($path)).Replace('\', '/')
+}
+
+function Get-GitLinesInPath {
+  param([string]$Path, [Parameter(ValueFromRemainingArguments = $true)]$GitArgs)
+  $safe = Get-GitSafePath $Path
+  $prev = $ErrorActionPreference
+  $ErrorActionPreference = 'Continue'
+  try {
+    $lines = @(& git -c "safe.directory=$safe" --no-optional-locks -C $Path @GitArgs 2>$null)
+    $code = $LASTEXITCODE
+  }
+  finally {
+    $ErrorActionPreference = $prev
+  }
+  if ($code -ne 0) { throw "git -C $Path $($GitArgs -join ' ') 실패" }
+  return $lines
+}
+
+function Get-GitValueInPath {
+  param([string]$Path, [Parameter(ValueFromRemainingArguments = $true)]$GitArgs)
+  return (Get-GitLinesInPath $Path @GitArgs | Select-Object -First 1)
+}
+
+# list/prune 은 조회 명령이다. Codex Windows sandbox 에서는 .git 이 읽기 전용이라
+# FETCH_HEAD 를 쓰는 `git fetch` 가 막힐 수 있다. 그때 조회 자체가 죽으면 사람이
+# 정리 대상을 볼 방법이 없어지므로, 기존 origin/<main> ref 로 계속 진행한다.
+# 단, 실제 삭제(--apply)는 최신 ref 없이 진행하지 않는다(Invoke-Prune 쪽에서 차단).
+function Update-OriginMainBestEffort {
+  $prev = $ErrorActionPreference
+  $ErrorActionPreference = 'Continue'
+  $out = @()
+  try {
+    $out = @(& git fetch origin $script:MainBr --quiet 2>&1)
+    $ok = ($LASTEXITCODE -eq 0)
+  }
+  catch {
+    $out = @($_)
+    $ok = $false
+  }
+  finally {
+    $ErrorActionPreference = $prev
+  }
+  if (-not $ok) {
+    $msg = ($out | ForEach-Object { [string]$_ } | Where-Object { $_ } | Select-Object -First 1)
+    if (-not $msg) { $msg = "git fetch origin $($script:MainBr) 실패" }
+    Write-Warning "origin/$($script:MainBr) 갱신 실패 — 기존 로컬 ref 기준으로 조회만 계속: $msg"
+  }
+  return $ok
+}
+
 # main checkout 루트 = 공유 .git(git-common-dir)의 부모.
 # worktree에서 실행해도 항상 main을 가리킨다($PSScriptRoot는 worktree-로컬이라 못 씀).
 function Get-MainRoot {
@@ -215,7 +267,7 @@ function Invoke-List {
   $hb   = Get-SessionHeartbeat $main
   $now  = Get-Date
   # 판정이 전부 origin/main 기준이라 낡으면 그대로 오답. 실패는 무시(옛 ref 로 진행).
-  & git fetch origin $script:MainBr --quiet 2>$null | Out-Null
+  $fresh = Update-OriginMainBestEffort
 
   $rows = @(); $seen = @{}
   foreach ($w in (Get-WorktreeEntries)) {
@@ -225,7 +277,7 @@ function Invoke-List {
     $beat  = if ($hb.ContainsKey($p)) { $hb[$p] } else { $null }
     $ageM  = if ($beat) { [int]((New-TimeSpan -Start $beat -End $now).TotalMinutes) } else { $null }
     $state = if ($null -ne $ageM -and $ageM -lt $script:StaleMin) { '살아있음' } else { '죽은듯' }
-    $dirty = @(& git --no-optional-locks -C $p status --porcelain 2>$null).Count
+    $dirty = try { @(Get-GitLinesInPath $p status --porcelain).Count } catch { '?' }
     $ahead = if ($w.branch) { [int](Get-GitValue rev-list --count "origin/$($script:MainBr)..$($w.branch)") } else { 0 }
     $landed = if ($ahead -gt 0 -and $w.branch) { Get-BranchLanded $w.branch } else { $null }   # 비싸다 — 필요할 때만
     $verdict =
@@ -268,6 +320,7 @@ function Invoke-List {
   if (-not $script:SessionsDir) { Write-Host "(이 프로젝트엔 세션 하트비트 훅이 없어 '상태'는 판정 불가 — 전부 '죽은듯')" -ForegroundColor DarkGray }
   Write-Host "커밋 = ancestry 상 origin/$($script:MainBr) 에 없는 커밋 수 — squash 머지면 부풀려 보인다(믿지 말 것)" -ForegroundColor DarkGray
   Write-Host "반영 = 브랜치가 더한 내용이 main 에 실제로 있나. '이미 반영'이면 지워도 잃을 게 없다" -ForegroundColor DarkGray
+  if (-not $fresh) { Write-Host "⚠ origin/$($script:MainBr) 갱신 실패로 오래된 로컬 ref 기준일 수 있다. 삭제 적용은 승인/사용자 권한에서만." -ForegroundColor DarkYellow }
   Write-Host "정리는 사람이:  $($script:CleanHint)" -ForegroundColor Green
 }
 
@@ -289,7 +342,7 @@ function Invoke-Clean($extra) {
   #   prune 만 이 판정을 쓰고 clean 은 안 썼다. 12h 조용함 게이트는 여기 넣지 않는다 —
   #   clean 은 사람이 이름을 찍어 부르는 명시적 행동이고 'PR 머지 직후 회수'가 정상 흐름이다.
   if (-not $force) {
-    $dirty = @(& git --no-optional-locks -C $wt status --porcelain 2>$null)
+    $dirty = @(Get-GitLinesInPath $wt status --porcelain)
     if ($dirty) {
       $dirty | Select-Object -First 10 | ForEach-Object { Write-Host "  $_" }
       if ($dirty.Count -gt 10) { Write-Host "  … 외 $($dirty.Count - 10) 개" }
@@ -322,7 +375,10 @@ function Invoke-Prune($extra) {
   $cur   = Get-GitValue rev-parse --show-toplevel
   if ($cur) { $cur = (Resolve-Path $cur).Path.TrimEnd('\', '/') }
 
-  Invoke-Git fetch origin $script:MainBr
+  $fresh = Update-OriginMainBestEffort
+  if ($apply -and -not $fresh) {
+    throw "origin/$($script:MainBr) 갱신 실패 — stale 기준으로 삭제 적용은 하지 않는다. 사용자 권한/승인 경로에서 다시 실행."
+  }
   $entries = Get-WorktreeEntries
   $prune = @(); $keep = @(); $skip = @()
 
@@ -334,15 +390,18 @@ function Invoke-Prune($extra) {
     # ★조용함 게이트를 status 보다 먼저 — `git status` 는 index 를 리프레시해 mtime 을 현재로
     #   만든다. 순서가 반대면 전부 '방금 활동'이 되어 아무것도 정리되지 않는다.
     if (-not $now) {
-      $gd = Get-GitValue -C $w.path rev-parse --absolute-git-dir
+      try { $gd = Get-GitValueInPath $w.path rev-parse --absolute-git-dir }
+      catch { $skip += @{ w=$w; why="gitdir 판정 실패: $_" }; continue }
       $idx = if ($gd) { Join-Path $gd 'index' } else { $null }
       # fail-closed: 판정 근거를 못 구하면 지우지 않는다(옛 코드는 실패 시 0 으로 떨어져 삭제 쪽으로 기울었다).
       if (-not $idx -or -not (Test-Path $idx)) { $skip += @{ w=$w; why='index 없음(판정 불가)' }; continue }
       $ageH = [int]((New-TimeSpan -Start (Get-Item $idx).LastWriteTime -End (Get-Date)).TotalHours)
       if ($ageH -lt $script:QuietH) { $skip += @{ w=$w; why="활동 ${ageH}h 전 (<$($script:QuietH)h)" }; continue }
     }
-    if (& git --no-optional-locks -C $w.path status --porcelain 2>$null) { $skip += @{ w=$w; why='dirty(미커밋 변경)' }; continue }
-    $rev   = if ($w.branch) { $w.branch } else { Get-GitValue -C $w.path rev-parse HEAD }
+    try { $dirty = @(Get-GitLinesInPath $w.path status --porcelain) }
+    catch { $skip += @{ w=$w; why="status 판정 실패: $_" }; continue }
+    if ($dirty) { $skip += @{ w=$w; why='dirty(미커밋 변경)' }; continue }
+    $rev   = if ($w.branch) { $w.branch } else { Get-GitValueInPath $w.path rev-parse HEAD }
     $ahead = [int](Get-GitValue rev-list --count "origin/$($script:MainBr)..$rev")
     if ($ahead -eq 0) { $prune += @{ w=$w; ahead=0; note=$(if ($w.branch) { '병합/빈 세션' } else { 'detached(병합됨)' }) } }
     else {
@@ -359,6 +418,7 @@ function Invoke-Prune($extra) {
 
   Write-Host ""
   Write-Host "── 정리 대상 (고유 커밋 0 또는 이미 반영) ──" -ForegroundColor Yellow
+  if (-not $fresh) { Write-Host "  ⚠ origin/$($script:MainBr) 갱신 실패 — 기존 로컬 ref 기준의 dry-run" -ForegroundColor DarkYellow }
   if (-not $prune) { Write-Host "  (없음)" }
   foreach ($x in $prune) { Write-Host ("  {0}  [{1}]  {2}" -f $x.w.path, ($x.w.branch ?? 'detached'), $x.note) }
   Write-Host ""

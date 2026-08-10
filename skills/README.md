@@ -37,17 +37,13 @@ pwsh $HOME\claude\install.ps1
 > **ai-readiness vs harness-audit** — 앞은 *코드베이스*가 읽기 좋은지(정량 점수), 뒤는 *환경*이 갖춰졌는지(빈 칸 찾기).
 > harness-audit 은 구조·맥락 점수를 ai-readiness 에 위임한다. 둘 다 필요하면 ai-readiness 먼저.
 
-### forge — 코드베이스를 「판」으로 놓고 보기
+### forge — 현재 보류
 
-| 스킬 | 뭘 하나 | 산출물 |
-|---|---|---|
-| **arch-forge** | C4 L1~L3 + Clean Architecture 링 + 지표 트리 + 결정 이력 | `docs/forge/arch/board.html` |
-| **backend-forge** | URL → View → Service → Model 을 **AST 로 실측**한 노선도 | `endpoints.json` 정본 + `routes.html` |
-| **frontend-forge** | 「한 가지 일에 화면이 몇 개 필요한가」 업무 묶음 판 (before/after) | `docs/forge/frontend/` |
-| **forge-loop** | 위 판들이 **실제 코드를 재고 있는지** 지키는 루프(골든 대조·drift) | 판정 리포트 |
+2026-08-10 현재 이 PC에서는 forge 4종(`arch-forge`·`backend-forge`·`frontend-forge`·`forge-loop`)을
+일상 개발 기본 흐름에서 빼고, 깨진 junction 링크도 제거했다. `Desktop/forge`도 없는 상태다.
 
-> 이 4개만 **본체가 `Desktop/forge` 레포에 있고 여기엔 심링크**다(작업 산출물이 커서 분리).
-> 그래서 `claude` 레포를 clone 해도 이 넷은 따라오지 않는다 — forge 레포를 따로 받아야 한다.
+다시 쓰기로 결정했을 때만 forge 레포를 따로 받고 `pwsh ~/claude/install.ps1 -InstallForge` 로
+링크를 복구한다. 기본 흐름은 Claude 하네스(`/기획`·`/실행`·`/상태`)와 Codex 직접 개발/검증이다.
 
 ## 📋 계획 — 짓기 전에
 
