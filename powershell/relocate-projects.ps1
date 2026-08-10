@@ -19,7 +19,10 @@
 param(
   [switch] $Apply,
   [ValidateSet('All', 'Bookmart', 'Coupang')]
-  [string] $Project = 'All'
+  [string] $Project = 'All',
+  [switch] $WaitForUnlock,
+  [int] $RetrySeconds = 5,
+  [int] $MaxAttempts = 120
 )
 
 $ErrorActionPreference = 'Stop'
@@ -80,17 +83,27 @@ function Move-ProjectDir([string]$Name, [string]$Source, [string]$Dest, [string]
   if ($srcExists -and $dstExists) { throw "대상과 원본이 둘 다 있다: $Source / $Dest" }
   if ($srcExists) {
     Invoke-Step "move $Name`: $Source -> $Dest" {
-      try {
-        Move-Item -LiteralPath $Source -Destination $Dest
-      }
-      catch {
-        $hint = @(
-          "폴더가 사용 중이라 이동 실패: $Source",
-          "닫을 것: 해당 폴더를 연 Codex task, Claude, VS Code, PowerShell/터미널, runserver/test 프로세스",
-          "Bookmart가 현재 Codex workspace라면 이 Codex task 자체를 닫아야 이동된다.",
-          "Coupang만 먼저 옮기려면: pwsh C:\Users\user\claude\powershell\relocate-projects.ps1 -Apply -Project Coupang"
-        )
-        throw (($hint -join "`n") + "`n원본 오류: $($_.Exception.Message)")
+      $attempt = 0
+      while ($true) {
+        $attempt++
+        try {
+          Move-Item -LiteralPath $Source -Destination $Dest
+          break
+        }
+        catch {
+          $hint = @(
+            "폴더가 사용 중이라 이동 실패: $Source",
+            "닫을 것: 해당 폴더를 연 Codex task, Claude, VS Code, PowerShell/터미널, runserver/test 프로세스",
+            "Bookmart가 현재 Codex workspace라면 이 Codex task 자체를 닫아야 이동된다.",
+            "Coupang만 먼저 옮기려면: pwsh C:\Users\user\claude\powershell\relocate-projects.ps1 -Apply -Project Coupang",
+            "잠금이 풀릴 때까지 기다리려면: pwsh C:\Users\user\claude\powershell\relocate-projects.ps1 -Apply -Project Bookmart -WaitForUnlock"
+          )
+          if (-not $WaitForUnlock -or $attempt -ge $MaxAttempts) {
+            throw (($hint -join "`n") + "`n원본 오류: $($_.Exception.Message)")
+          }
+          Write-Warning "잠김: $Source — ${RetrySeconds}s 후 재시도 ($attempt/$MaxAttempts). 이 폴더를 연 Codex task/터미널을 닫으세요."
+          Start-Sleep -Seconds $RetrySeconds
+        }
       }
     }
   }
