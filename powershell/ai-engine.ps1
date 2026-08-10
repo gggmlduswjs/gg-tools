@@ -53,6 +53,7 @@ Usage:
   .\ai.ps1 tasks [-Repo path]
   .\ai.ps1 tail [run-id] [-Repo path] [-Lines n]
   .\ai.ps1 stop [run-id|phase] [-Repo path] [-All]
+  .\ai.ps1 cleanup [-Repo path] [-Days n] [-Apply]
   .\ai.ps1 prompt <name|plan-path> [-Repo path] [-Axis fe|be|arch] [-Copy] [-IncludeDiff]
   .\ai.ps1 cloud <name|plan-path> [-Repo path] [-Axis fe|be|arch] -Env <env-id> [-Branch branch] [-Attempts n] [-AllowDirty] [-IncludeDiff]
 
@@ -211,11 +212,18 @@ function Parse-Options {
                 $options["Lines"] = $Tokens[$i]
                 continue
             }
+            '^-Days$' {
+                if ($i + 1 -ge $Tokens.Count) { throw "-Days requires a value" }
+                $i++
+                $options["Days"] = $Tokens[$i]
+                continue
+            }
             '^-IncludeDiff$' { $options["IncludeDiff"] = $true; continue }
             '^-Copy$' { $options["Copy"] = $true; continue }
             '^-NoRun$' { $options["NoRun"] = $true; continue }
             '^-Here$' { $options["Here"] = $true; continue }
             '^-Force$' { $options["Force"] = $true; continue }
+            '^-Apply$' { $options["Apply"] = $true; continue }
             '^-NoBranch$' { $options["NoBranch"] = $true; continue }
             '^-Push$' { $options["Push"] = $true; continue }
             '^-Unsafe$' { $options["Unsafe"] = $true; continue }
@@ -1181,6 +1189,229 @@ function Invoke-Stop {
     }
 }
 
+function Read-HarnessJson {
+    param([Parameter(Mandatory = $true)][string] $Path)
+    if (-not (Test-Path -LiteralPath $Path)) { return $null }
+    try {
+        return Get-Content -Raw -LiteralPath $Path -Encoding UTF8 | ConvertFrom-Json
+    } catch {
+        return $null
+    }
+}
+
+function Get-StepStatusSummary {
+    param($Steps)
+    $items = @($Steps)
+    if ($items.Count -eq 0) { return "no steps" }
+    return (($items | Group-Object { if ($_.status) { $_.status } else { "missing" } } |
+        ForEach-Object { "{0}={1}" -f $_.Name, $_.Count }) -join ", ")
+}
+
+function Test-PhaseIndexCompleted {
+    param($Index)
+    if ($null -eq $Index) { return $false }
+    if ($Index.completed_at) { return $true }
+    $steps = @($Index.steps)
+    if ($steps.Count -eq 0) { return $false }
+    foreach ($step in $steps) {
+        if ($step.status -ne "completed") { return $false }
+    }
+    return $true
+}
+
+function Get-PhaseCompletedTime {
+    param(
+        [Parameter(Mandatory = $true)][string] $IndexPath,
+        $Index
+    )
+    if ($Index -and $Index.completed_at) {
+        try { return [datetime]::Parse([string]$Index.completed_at) } catch { }
+    }
+    return (Get-Item -LiteralPath $IndexPath).LastWriteTime
+}
+
+function Get-PhaseCleanupPlan {
+    param([int] $Days = 0)
+
+    if ($Days -lt 0) { throw "-Days must be zero or greater" }
+
+    $topPath = Join-Path $PhasesDir "index.json"
+    $topIndex = Read-HarnessJson $topPath
+    $topStatuses = @{}
+    if ($topIndex -and $topIndex.phases) {
+        foreach ($phase in @($topIndex.phases)) {
+            if ($phase.dir) { $topStatuses[[string]$phase.dir] = [string]$phase.status }
+        }
+    }
+
+    $livePhases = @{}
+    foreach ($record in @(Get-AllRunRecords -Limit 100)) {
+        if ($record.phase -and (Test-RunAlive $record)) {
+            $livePhases[[string]$record.phase] = $true
+        }
+    }
+
+    $cutoff = (Get-Date).AddDays(-1 * $Days)
+    $candidates = New-Object System.Collections.Generic.List[object]
+    $skipped = New-Object System.Collections.Generic.List[object]
+    $archiveRoot = Join-Path $PhasesDir ("_archive\" + (Get-Date -Format "yyyyMMdd-HHmmss"))
+
+    if (-not (Test-Path -LiteralPath $PhasesDir)) {
+        return [pscustomobject]@{ Candidates = @(); Skipped = @(); ArchiveRoot = $archiveRoot }
+    }
+
+    foreach ($dir in @(Get-ChildItem -LiteralPath $PhasesDir -Directory -Force)) {
+        if ($dir.Name -in @("_archive", "_triage")) { continue }
+
+        if ($livePhases.ContainsKey($dir.Name)) {
+            $skipped.Add([pscustomobject]@{ Phase = $dir.Name; Reason = "running run exists"; Detail = "" }) | Out-Null
+            continue
+        }
+
+        $topStatus = if ($topStatuses.ContainsKey($dir.Name)) { $topStatuses[$dir.Name] } else { "" }
+        if ($topStatus -and $topStatus -notin @("completed")) {
+            $skipped.Add([pscustomobject]@{ Phase = $dir.Name; Reason = "active in top index"; Detail = $topStatus }) | Out-Null
+            continue
+        }
+
+        $indexPath = Join-Path $dir.FullName "index.json"
+        if (-not (Test-Path -LiteralPath $indexPath)) {
+            $skipped.Add([pscustomobject]@{ Phase = $dir.Name; Reason = "legacy/no index.json"; Detail = "" }) | Out-Null
+            continue
+        }
+
+        $index = Read-HarnessJson $indexPath
+        if ($null -eq $index) {
+            $skipped.Add([pscustomobject]@{ Phase = $dir.Name; Reason = "unreadable index.json"; Detail = "" }) | Out-Null
+            continue
+        }
+
+        if (-not (Test-PhaseIndexCompleted $index)) {
+            $stepSummary = Get-StepStatusSummary -Steps @($index.steps)
+            $skipped.Add([pscustomobject]@{
+                Phase = $dir.Name
+                Reason = "not completed"
+                Detail = $stepSummary
+            }) | Out-Null
+            continue
+        }
+
+        $completedAt = Get-PhaseCompletedTime -IndexPath $indexPath -Index $index
+        if ($completedAt -gt $cutoff) {
+            $skipped.Add([pscustomobject]@{
+                Phase = $dir.Name
+                Reason = "too recent"
+                Detail = $completedAt.ToString("s")
+            }) | Out-Null
+            continue
+        }
+
+        $candidateSourcePlan = if ($index.source_plan) { [string]$index.source_plan } else { "" }
+        $candidateDetail = Get-StepStatusSummary -Steps @($index.steps)
+        $candidates.Add([pscustomobject]@{
+            Phase = $dir.Name
+            Path = $dir.FullName
+            TopStatus = $topStatus
+            CompletedAt = $completedAt
+            SourcePlan = $candidateSourcePlan
+            Detail = $candidateDetail
+        }) | Out-Null
+    }
+
+    $candidateArray = @($candidates.ToArray())
+    $skippedArray = @($skipped.ToArray())
+    [pscustomobject]@{
+        Candidates = $candidateArray
+        Skipped = $skippedArray
+        ArchiveRoot = $archiveRoot
+    }
+}
+
+function Move-PhaseCleanupCandidates {
+    param($Plan)
+
+    $archiveRoot = [System.IO.Path]::GetFullPath($Plan.ArchiveRoot)
+    $phasesFull = [System.IO.Path]::GetFullPath($PhasesDir).TrimEnd('\') + '\'
+    $archiveFull = $archiveRoot.TrimEnd('\') + '\'
+    New-Item -ItemType Directory -Force -Path $archiveRoot | Out-Null
+
+    foreach ($candidate in @($Plan.Candidates)) {
+        $src = [System.IO.Path]::GetFullPath([string]$candidate.Path)
+        $dst = [System.IO.Path]::GetFullPath((Join-Path $archiveRoot $candidate.Phase))
+        if (-not $src.StartsWith($phasesFull, [System.StringComparison]::OrdinalIgnoreCase)) {
+            throw "Refusing to move phase outside phases dir: $src"
+        }
+        if (-not $dst.StartsWith($archiveFull, [System.StringComparison]::OrdinalIgnoreCase)) {
+            throw "Refusing to move phase outside archive dir: $dst"
+        }
+        Move-Item -LiteralPath $src -Destination $dst
+        Write-Host ("  archived: {0} -> {1}" -f $candidate.Phase, (Get-RepoRelativePath $dst))
+    }
+
+    $topPath = Join-Path $PhasesDir "index.json"
+    $topIndex = Read-HarnessJson $topPath
+    if ($topIndex -and $topIndex.phases) {
+        $names = @{}
+        foreach ($candidate in @($Plan.Candidates)) { $names[$candidate.Phase] = $true }
+        $topIndex.phases = @($topIndex.phases | Where-Object { -not $names.ContainsKey([string]$_.dir) })
+        $topIndex | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $topPath -Encoding UTF8
+    }
+}
+
+function Invoke-Cleanup {
+    param([string[]] $Tokens)
+
+    $parsed = Parse-Options $Tokens
+    Apply-RepoOption $parsed.Options
+
+    $days = 0
+    if ($parsed.Options["Days"]) {
+        if (-not [int]::TryParse([string]$parsed.Options["Days"], [ref]$days)) {
+            throw "-Days must be an integer"
+        }
+    }
+
+    $plan = Get-PhaseCleanupPlan -Days $days
+    $candidates = @($plan.Candidates)
+    $skipped = @($plan.Skipped)
+
+    $mode = if ($parsed.Options["Apply"]) { "apply" } else { "dry-run" }
+    Write-Host ("Harness phase cleanup ({0})" -f $mode)
+    Write-Host ("Repo:    {0}" -f $Root)
+    Write-Host ("Archive: {0}" -f (Get-RepoRelativePath $plan.ArchiveRoot))
+    Write-Host ("Rule:    completed phase, not active/running, age >= {0} day(s)" -f $days)
+    Write-Host ""
+
+    if ($candidates.Count -eq 0) {
+        Write-Host "Candidates: none"
+    } else {
+        Write-Host ("Candidates: {0}" -f $candidates.Count)
+        foreach ($candidate in $candidates | Select-Object -First 40) {
+            Write-Host ("  - {0} ({1}; {2})" -f $candidate.Phase, $candidate.CompletedAt.ToString("s"), $candidate.Detail)
+        }
+        if ($candidates.Count -gt 40) { Write-Host ("  ... {0} more" -f ($candidates.Count - 40)) }
+    }
+
+    if ($skipped.Count -gt 0) {
+        Write-Host ""
+        Write-Host ("Skipped: {0}" -f $skipped.Count)
+        foreach ($item in $skipped | Select-Object -First 20) {
+            $detail = if ($item.Detail) { " — $($item.Detail)" } else { "" }
+            Write-Host ("  - {0}: {1}{2}" -f $item.Phase, $item.Reason, $detail)
+        }
+        if ($skipped.Count -gt 20) { Write-Host ("  ... {0} more" -f ($skipped.Count - 20)) }
+    }
+
+    if (-not $parsed.Options["Apply"]) {
+        Write-Host ""
+        Write-Host "No files moved. Re-run with -Apply to archive candidates."
+        return
+    }
+
+    if ($candidates.Count -eq 0) { return }
+    Move-PhaseCleanupCandidates -Plan $plan
+}
+
 function Invoke-Tail {
     param([string[]] $Tokens)
 
@@ -1379,6 +1610,7 @@ function Invoke-Ai {
             "tail" { Invoke-Tail -Tokens $Rest }
             "stop" { Invoke-Stop -Tokens $Rest }
             "kill" { Invoke-Stop -Tokens $Rest }
+            "cleanup" { Invoke-Cleanup -Tokens $Rest }
             "prompt" { Invoke-Prompt -Tokens $Rest }
             "cloud" { Invoke-Cloud -Tokens $Rest }
             default {
