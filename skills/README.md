@@ -1,30 +1,8 @@
-# claude-skills
+# gg-harness skills
 
-전역 스킬 모음. `claude` 레포의 `home/skills/` 가 정본이고 `~/.claude/skills/` 는 그걸 가리키는
-**심링크**라, 여기서 고치면 곧바로 반영된다(재설치·재시작 없음).
+`gg-harness` plugin에 포함되는 스킬 목록이다. 이 폴더는 plugin package의 정본이며, 설치는 루트 README의 `/plugin marketplace add` + `/plugin install gg-harness@gg-harness` 흐름을 따른다.
 
-스킬은 평소 **description 만** 컨텍스트에 올라가고(~100B), 호출될 때 본문이 로드된다.
-그래서 26개가 있어도 평소 부담은 거의 없다 — 다만 **뭐가 뭔지 모르면 안 쓰게 되므로** 이 지도가 있다.
-
----
-
-
-## 새 PC 에서
-
-```
-git clone https://github.com/gggmlduswjs/claude.git $HOME\claude
-pwsh $HOME\claude\install.ps1
-```
-
-스킬만 따로 설치하지 않는다 — `install.ps1` 이 CLAUDE.md·훅·PowerShell 함수까지 같이 배치한다.
-
-> **`/plugin` 으로 안 쓰는 이유** — 플러그인은 clone 된 캐시를 보므로 고칠 때마다 push + update 가
-> 필요하고, 스킬 이름에 `claude-skills:` 네임스페이스가 붙어 호출 방식이 달라진다. 그리고 플러그인은
-> skills·commands·agents·hooks·mcp 만 배치할 수 있어 CLAUDE.md·settings.json·statusline 은 어차피
-> `install.ps1` 이 해야 한다. **경로를 둘로 늘려서 얻는 게 없다.**
-> (2026-08-06: 매니페스트 2개를 만들어만 두고 한 번도 설치하지 않은 채 archived 레포를 가리키고
-> 있어서 지웠다.)
-
+이 레포는 더 이상 `install.ps1`, 전역 `CLAUDE.md`, PowerShell 프로필, PC별 hooks/settings를 배포하지 않는다. 그런 로컬 배선은 plugin 밖 개인 설정으로 둔다.
 ## 🔍 진단 — 지금 상태가 어떤지 볼 때
 
 | 스킬 | 뭘 하나 | 산출물 |
@@ -37,14 +15,9 @@ pwsh $HOME\claude\install.ps1
 > **ai-readiness vs harness-audit** — 앞은 *코드베이스*가 읽기 좋은지(정량 점수), 뒤는 *환경*이 갖춰졌는지(빈 칸 찾기).
 > harness-audit 은 구조·맥락 점수를 ai-readiness 에 위임한다. 둘 다 필요하면 ai-readiness 먼저.
 
-### forge — 현재 보류
+### forge — plugin 밖 로컬 도구
 
-2026-08-10 현재 이 PC에서는 forge 4종(`arch-forge`·`backend-forge`·`frontend-forge`·`forge-loop`)을
-일상 개발 기본 흐름에서 빼고, 깨진 junction 링크도 제거했다. `Desktop/forge`도 없는 상태다.
-
-다시 쓰기로 결정했을 때만 forge 레포를 따로 받고 `pwsh ~/claude/install.ps1 -InstallForge` 로
-링크를 복구한다. 기본 흐름은 Claude 하네스(`/기획`·`/실행`·`/상태`)와 Codex 직접 개발/검증이다.
-
+forge 계열 로컬 도구는 `gg-harness` plugin package에 포함하지 않는다. 다시 쓰기로 결정하면 별도 레포/로컬 폴더에서 관리하고, 이 스킬 목록에는 넣지 않는다.
 ## 📋 계획 — 짓기 전에
 
 | 스킬 | 뭘 하나 |
@@ -126,4 +99,4 @@ pwsh $HOME\claude\install.ps1
 - **하네스 Eval** — 스킬을 고쳤을 때 회귀했는지 재는 golden set 루프. (bookmart 는 `.dev/harness/evals/` 로 손수 구현돼 있음)
 - **Alert as Code** — 대시보드 클릭으로 만든 설정은 에이전트가 못 고친다.
 
-(**플러그인 패키징**은 「안 만든 것」이 아니라 **안 하기로 한 것**이다 — 위 「새 PC 에서」 참조.)
+PC 배선과 플러그인 패키징은 분리한다. 이 폴더에는 plugin으로 배포할 스킬만 둔다.

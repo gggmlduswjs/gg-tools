@@ -1,9 +1,0 @@
-# User-wide Git ignore file used by local Git/Codex sessions.
-#
-# Keep this file intentionally small. Project-specific ignores belong in each
-# repository's .gitignore.
-
-.DS_Store
-Thumbs.db
-desktop.ini
-

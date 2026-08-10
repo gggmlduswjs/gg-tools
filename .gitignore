@@ -24,3 +24,18 @@ skills/arch-forge
 skills/backend-forge
 skills/forge-loop
 skills/frontend-forge
+# ── local machine wiring, not plugin package ─────────────────────────────
+# 이 레포는 gg-harness plugin source다. PC 배선/전역 설정/워크트리 런처는
+# GitHub plugin 패키지에 넣지 않는다. 필요하면 로컬에만 둔다.
+.claude/
+.githooks/
+install.ps1
+home/
+powershell/
+hooks/
+projects/
+scripts/
+gitignore_global
+새PC.md
+운영_워크플로우.md
+북마크_레포.md

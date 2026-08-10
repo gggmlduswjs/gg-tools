@@ -1,7 +1,7 @@
 {
   "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
   "name": "gg-harness",
-  "description": "북마트·쿠팡 운영 개인 하네스. 이 레포 하나가 marketplace 이자 plugin 이다(source: ./).",
+  "description": "북마트·쿠팡 운영용 Claude Code plugin marketplace. 이 레포는 plugin source만 담는다.",
   "owner": {
     "name": "gggmlduswjs",
     "url": "https://github.com/gggmlduswjs"
@@ -11,7 +11,7 @@
       "name": "gg-harness",
       "source": "./",
       "version": "1.1.0",
-      "description": "스킬 22종 — 코드 감사(ai-readiness·owasp·code-review-7p) · 설계 문서(product-spec-kit·domain-modeling) · 실행(harness-steps·grilling) · 시각화(report·codebase-visualizer) · 토큰 효율. forge 4종은 별도 레포라 여기 없다(install.ps1 이 junction 으로 건다).",
+      "description": "재사용 가능한 skills와 slash commands. 전역 CLAUDE.md, PowerShell 프로필, worktree 런처, PC별 hooks/settings는 포함하지 않는다.",
       "category": "productivity"
     }
   ]

@@ -1,7 +1,7 @@
 {
   "name": "gg-harness",
   "version": "1.1.0",
-  "description": "북마트·쿠팡 운영을 위한 개인 하네스 — 스킬 22종(코드 감사·forge 판 읽기·설계 문서·리뷰·보안·토큰 효율) + 커맨드 8종(기획·실행·상태·검토루프와 영문 별칭). CLAUDE.md·git 훅·공용 파이썬 엔진은 plugin 이 아니라 install.ps1 이 배선한다(README 참고).",
+  "description": "북마트·쿠팡 운영을 위한 Claude Code plugin. 재사용 가능한 skills와 slash commands만 배포한다. 전역 CLAUDE.md, PowerShell 프로필, worktree 런처, PC별 hooks/settings는 이 plugin에 포함하지 않는다.",
   "author": {
     "name": "gggmlduswjs",
     "url": "https://github.com/gggmlduswjs"
@@ -12,7 +12,6 @@
     "personal-harness",
     "code-audit",
     "ai-readiness",
-    "forge",
     "claude-code-plugin"
   ]
 }
