@@ -67,11 +67,26 @@ function Get-GitValueInPath {
   return (Get-GitLinesInPath $Path @GitArgs | Select-Object -First 1)
 }
 
+function Test-CodexSandboxGitMutationBlocked {
+  return [bool](
+    $env:CODEX_THREAD_ID -and
+    (($env:CODEX_PERMISSION_PROFILE -and $env:CODEX_PERMISSION_PROFILE -ne ':full') -or
+     $env:CODEX_SANDBOX_NETWORK_DISABLED)
+  )
+}
+
 # list/prune 은 조회 명령이다. Codex Windows sandbox 에서는 .git 이 읽기 전용이라
 # FETCH_HEAD 를 쓰는 `git fetch` 가 막힐 수 있다. 그때 조회 자체가 죽으면 사람이
 # 정리 대상을 볼 방법이 없어지므로, 기존 origin/<main> ref 로 계속 진행한다.
 # 단, 실제 삭제(--apply)는 최신 ref 없이 진행하지 않는다(Invoke-Prune 쪽에서 차단).
 function Update-OriginMainBestEffort {
+  $script:OriginMainUpdateSkipped = $false
+  if (Test-CodexSandboxGitMutationBlocked) {
+    $script:OriginMainUpdateSkipped = $true
+    Write-Host "Codex sandbox 조회 모드: git fetch 생략 — 기존 로컬 origin/$($script:MainBr) 기준." -ForegroundColor DarkYellow
+    return $false
+  }
+
   $prev = $ErrorActionPreference
   $ErrorActionPreference = 'Continue'
   $out = @()
@@ -320,7 +335,14 @@ function Invoke-List {
   if (-not $script:SessionsDir) { Write-Host "(이 프로젝트엔 세션 하트비트 훅이 없어 '상태'는 판정 불가 — 전부 '죽은듯')" -ForegroundColor DarkGray }
   Write-Host "커밋 = ancestry 상 origin/$($script:MainBr) 에 없는 커밋 수 — squash 머지면 부풀려 보인다(믿지 말 것)" -ForegroundColor DarkGray
   Write-Host "반영 = 브랜치가 더한 내용이 main 에 실제로 있나. '이미 반영'이면 지워도 잃을 게 없다" -ForegroundColor DarkGray
-  if (-not $fresh) { Write-Host "⚠ origin/$($script:MainBr) 갱신 실패로 오래된 로컬 ref 기준일 수 있다. 삭제 적용은 승인/사용자 권한에서만." -ForegroundColor DarkYellow }
+  if (-not $fresh) {
+    if ($script:OriginMainUpdateSkipped) {
+      Write-Host "Codex sandbox 안에서는 .git 쓰기(fetch)를 건너뛰었다. 삭제 적용은 승인/사용자 권한에서만." -ForegroundColor DarkYellow
+    }
+    else {
+      Write-Host "⚠ origin/$($script:MainBr) 갱신 실패로 오래된 로컬 ref 기준일 수 있다. 삭제 적용은 승인/사용자 권한에서만." -ForegroundColor DarkYellow
+    }
+  }
   Write-Host "정리는 사람이:  $($script:CleanHint)" -ForegroundColor Green
 }
 
@@ -377,6 +399,9 @@ function Invoke-Prune($extra) {
 
   $fresh = Update-OriginMainBestEffort
   if ($apply -and -not $fresh) {
+    if ($script:OriginMainUpdateSkipped) {
+      throw "Codex sandbox 조회 모드 — .git 쓰기(fetch) 없이 삭제 적용은 하지 않는다. 사용자 PowerShell 또는 승인 경로에서 다시 실행."
+    }
     throw "origin/$($script:MainBr) 갱신 실패 — stale 기준으로 삭제 적용은 하지 않는다. 사용자 권한/승인 경로에서 다시 실행."
   }
   $entries = Get-WorktreeEntries
@@ -418,7 +443,14 @@ function Invoke-Prune($extra) {
 
   Write-Host ""
   Write-Host "── 정리 대상 (고유 커밋 0 또는 이미 반영) ──" -ForegroundColor Yellow
-  if (-not $fresh) { Write-Host "  ⚠ origin/$($script:MainBr) 갱신 실패 — 기존 로컬 ref 기준의 dry-run" -ForegroundColor DarkYellow }
+  if (-not $fresh) {
+    if ($script:OriginMainUpdateSkipped) {
+      Write-Host "  Codex sandbox 조회 모드 — 기존 로컬 origin/$($script:MainBr) 기준의 dry-run" -ForegroundColor DarkYellow
+    }
+    else {
+      Write-Host "  ⚠ origin/$($script:MainBr) 갱신 실패 — 기존 로컬 ref 기준의 dry-run" -ForegroundColor DarkYellow
+    }
+  }
   if (-not $prune) { Write-Host "  (없음)" }
   foreach ($x in $prune) { Write-Host ("  {0}  [{1}]  {2}" -f $x.w.path, ($x.w.branch ?? 'detached'), $x.note) }
   Write-Host ""
