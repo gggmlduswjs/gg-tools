@@ -2,6 +2,16 @@
 
 레포 shim(`.claude/hooks/*.py`)이 `runpy` 로 여기를 부른다. **로직은 여기 한 벌.**
 
+⚠️★★★ **엔진의 자리는 여기(`gg-harness/hooks/`) 하나다.** 레포 루트의 `hooks/` 는
+2026-08-11 플러그인 nest 이전 자리이고 지금은 gitignore 다 — 거기 파일을 두지 마라.
+
+> **왜 이 경고가 있나 (2026-08-13):** 08-11 에 엔진이 `hooks/` → `gg-harness/hooks/` 로
+> 순수 rename 됐는데, **로컬 디스크의 옛 폴더를 안 지웠다.** 북마트 shim 은 새 자리를
+> 따라갔지만 쿠팡 shim 은 옛 경로를 계속 가리켰고, 거기 추적 안 되는 142줄짜리 옛
+> 엔진이 남아 있어서 **조용히 옛 로직으로 돌았다**(이틀간 개선분 0). 파일이 아예
+> 없었으면 shim 이 `exit 0` 해서 금방 티가 났을 것이다 — **잔재가 실패를 감췄다.**
+> 그래서 shim 은 경로를 박지 말고 **후보 순서**(새 자리 먼저, 옛 자리 폴백)로 쓴다.
+
 ## tdd_guard.py
 
 PreToolUse[Write|Edit] — 가드 범위 소스를 고칠 때 테스트 참조가 없으면 `ask`(기본).
@@ -11,4 +21,23 @@ PreToolUse[Write|Edit] — 가드 범위 소스를 고칠 때 테스트 참조�
 - `TDD_TESTS` — 테스트 루트 glob (예: `src/*/tests,tests`)
 - `TDD_DECISION` — `ask`(기본) 또는 `deny` (데모 프로젝트식 하드 차단)
 
-self-test: `python ~/claude/hooks/tdd_guard.py --selftest`
+self-test: `python ~/claude/gg-harness/hooks/tdd_guard.py --selftest`
+
+## commit_sentinel.py
+
+post-commit — 방금 만든 커밋이 이상하면 **알린다**(막지 않는다). 크기·오염·세션교차·stale·머지를 본다.
+
+환경변수 (shim 이 설정):
+- `SENTINEL_FILES` — 파일 수 임계 (쿠팡 `post-commit` 은 50)
+- `SENTINEL_DIRS` — 최상위 디렉터리 수 임계 (6)
+- `SENTINEL_SESSIONS` — 세션 기록 경로 (`.claude/sessions`)
+
+self-test: `python ~/claude/gg-harness/hooks/commit_sentinel.py --selftest` (20 cases)
+
+> **왜 여기로 왔나 (2026-08-13):** 08-10 대청소(`d4e56c5`)가 로컬 배선과 함께 이 파일도
+> git 에서 뺐다. 그 뒤 **추적이 안 되니 새 PC 에는 아예 없었고**, 훅은 `[ -f ] || exit 0`
+> 로 조용히 통과했다. 북마트는 *"commit_sentinel 이 없어 호출이 전부 no-op 이었다"* 며
+> 08-11 에 `post-commit` 자체를 지웠다 — **추적을 안 해서 자산이 죽고, 죽었으니 호출이
+> 지워진** 것이다. 양쪽 레포가 부르는 공용 엔진이므로 플러그인이 나르는 게 맞다.
+> (같이 있던 `touch_log.py` 는 **부르는 데가 없어** 승격하지 않았다 — 죽은 것을 공용으로
+> 올리면 다음 사람이 살아 있는 줄 안다.)
