@@ -44,6 +44,29 @@ self-test: `python ~/claude/gg-harness/hooks/commit_sentinel.py --selftest` (20 
 > 남아 있고 **라이브 설정엔 `hooks` 키 자체가 없어** 08-09 이후 안 돈다. 소비자인
 > `SENTINEL_SESSIONS` 도 두 레포 다 안 켜서, 지금 세션교차 판정은 꺼져 있는 상태다.)
 
+## stale_worktrees.py
+
+SessionStart 보조 — main 에서 너무 멀어진 워크트리를 **알린다**(지우지 않는다).
+
+환경변수 (shim 이 설정):
+- `WORKTREE_BEHIND_LIMIT` — 이만큼 뒤처지면 폐기물로 본다 (기본 100 ≈ 이틀치)
+- `WORKTREE_REPORT_MAX` — 화면에 띄울 최대 개수 (기본 5)
+- `WORKTREE_BASE` — 비교 기준 (기본 `origin/main`)
+
+self-test: `python ~/claude/gg-harness/hooks/stale_worktrees.py --selftest` (9 cases · git 없이 돈다)
+직접 보기: `python ~/claude/gg-harness/hooks/stale_worktrees.py <레포경로>`
+
+> **왜 나이가 아니라 커밋 수인가:** main 이 하루 50~72커밋으로 움직인다. 실측 대응은
+> 1일≈34~69 · 2일≈92~124 · 4일≈195 · **6일=416커밋**. 416커밋 뒤처진 워크트리에서
+> 다시 시작하는 것보다 새로 따는 게 언제나 싸다.
+>
+> **왜 생겼나 (2026-08-13):** 쿠팡에 워크트리 22개가 쌓였는데 `wt.ps1 prune` 은 정리 대상 0을
+> 반환했다 — dirty 미커밋이 대부분 **하네스 자신의 phase 산출물**이라 안전가드에 전부 걸린 것이다.
+> **도구는 멀쩡했고 아무도 안 봤을 뿐**이라, 발견을 사람에서 훅으로 옮겼다. 같은 날 북마트도
+> 8개가 쌓여 있었는데 거긴 경고 자체가 없었다 — 그래서 공용 엔진이다.
+> ⚠️ 파싱을 순수 함수로 갈라놨다(`parse_worktrees`·`parse_refs`·`select_stale`·`format_lines`) —
+> git 없이 selftest 가 돈다. ⚠️`--porcelain` 을 쓰는 건 **한글 경로를 escape 하지 않아서**다.
+
 ## memory_link.py
 
 SessionStart — 프로젝트 메모리(`~/.claude/projects/<슬러그>/memory`)를 Drive 공용 폴더로 잇는다.
