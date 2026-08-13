@@ -44,6 +44,32 @@ self-test: `python ~/claude/gg-harness/hooks/commit_sentinel.py --selftest` (20 
 > 남아 있고 **라이브 설정엔 `hooks` 키 자체가 없어** 08-09 이후 안 돈다. 소비자인
 > `SENTINEL_SESSIONS` 도 두 레포 다 안 켜서, 지금 세션교차 판정은 꺼져 있는 상태다.)
 
+## guardrail.py
+
+PreToolUse[Bash|PowerShell] — 위험한 명령을 `deny`(금지) / `ask`(확인 강제)로 가른다.
+**판정 로직 + 두 레포가 같이 지는 위험**이 여기 있고, 레포 고유 규칙은 shim 에 있다.
+
+```python
+engine = runpy.run_path(ENGINE, run_name="guardrail_engine")
+RULES = REPO_DENY + engine["deny_common"](migration_hint="…") \
+      + REPO_ASK  + engine["ask_common"]()
+```
+
+⚠️★★★ **순서가 곧 판정이다**(위→아래 첫 매치). shim 은 **deny 를 전부 앞에** 이어붙인다 —
+안 그러면 `DB_ALLOW_WRITE=1 python manage.py migrate` 같은 게 ask 로 새 나간다.
+★`check(RULES, REPO_CASES)` 는 **공용 케이스 32종을 반드시 같이 돌린다** — 레포가 순서를
+잘못 이어붙여 공용 보호가 죽으면 **그 레포의 selftest 에서** 빨개진다.
+
+self-test: `python ~/claude/gg-harness/hooks/guardrail.py --selftest` (공용 32 cases)
+
+> **왜 갈랐나 (2026-08-13):** 쿠팡 95줄 / 북마트 199줄이 **`decide()`·`main()` 은 글자까지
+> 같은데 규칙만 갈려** 있었다. 그래서 **한쪽이 겪은 사고를 반대편이 그대로 안고 있었다.**
+> 북마트만 알던 것 셋을 쿠팡이 못 받고 있었다 — 명령줄 인라인 시크릿(`sk-…` 를 승인하면
+> `settings.local.json` allow 에 **평문**으로 박힌다) · `git rm --pathspec-from-file`
+> (대상이 안 보이는 일괄삭제) · `git checkout/restore .`. 반대로 쿠팡만 알던
+> `git add .env` 를 북마트가 못 받고 있었다.
+> ⚠️ `deny` 보다 `ask` 를 넉넉히 쓴다 — **오탐 한 번이면 사람이 가드를 통째로 끈다.**
+
 ## stale_worktrees.py
 
 SessionStart 보조 — main 에서 너무 멀어진 워크트리를 **알린다**(지우지 않는다).
