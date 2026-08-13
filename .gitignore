@@ -25,23 +25,21 @@ skills/backend-forge
 skills/forge-loop
 skills/frontend-forge
 # ── local machine wiring, not plugin package ─────────────────────────────
-# 이 레포는 gg-harness plugin source다. PC 배선/전역 설정/워크트리 런처는
-# GitHub plugin 패키지에 넣지 않는다. 필요하면 로컬에만 둔다.
 # ⚠️ 전부 `/` 로 시작한다 = **루트에만** 건다. 앞에 `/` 가 없으면 git 은 모든 깊이의
 #    같은 이름 폴더에 건다 — `hooks/` 는 플러그인의 `gg-harness/hooks/` 를, `scripts/` 는
 #    `gg-harness/skills/*/scripts/` 를 같이 무시해 버린다(2026-08-13 발견).
 /.claude/
 /.githooks/
-/install.ps1
-/home/
-/powershell/
 /hooks/
 /projects/
-/scripts/
-/gitignore_global
-새PC.md
-운영_워크플로우.md
-북마크_레포.md
+
+# ★2026-08-13: `install.ps1`·`home/`·`powershell/`·`scripts/`·운영 문서 3종의 무시를 **걷어냈다.**
+#   08-10 대청소(d4e56c5)가 *"이 레포는 plugin source 다"* 라며 뺐는데, 그건 **플러그인 본체가
+#   루트에 있던 시절**의 이유다. 08-11 nest 로 패키지 경계가 `./gg-harness` 로 좁아져
+#   (marketplace.json `"source": "./gg-harness"`) 루트 파일은 애초에 패키지에 안 들어간다.
+#   ⚠️그 사이 `새PC.md` 는 *"클론하고 install.ps1 을 돌려라"* 라고 적어둔 채였고,
+#     **그 install.ps1 이 레포에 없었다** — 새 PC 복구 경로가 통째로 허구였다.
+#     전역 `home/CLAUDE.md` 도 이 PC 한 대에만 있었다. 백업이 아니라 단일 장애점이었다.
 
 # ⚠️ 루트 `hooks/` 의 예외(`!hooks/**`)는 2026-08-13 에 걷어냈다.
 # 08-10 대청소(d4e56c5) 직후 #14 가 "shared TDD guard engine" 을 넣으려고 예외를 뚫었는데,
