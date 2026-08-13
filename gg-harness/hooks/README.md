@@ -40,4 +40,29 @@ self-test: `python ~/claude/gg-harness/hooks/commit_sentinel.py --selftest` (20 
 > 08-11 에 `post-commit` 자체를 지웠다 — **추적을 안 해서 자산이 죽고, 죽었으니 호출이
 > 지워진** 것이다. 양쪽 레포가 부르는 공용 엔진이므로 플러그인이 나르는 게 맞다.
 > (같이 있던 `touch_log.py` 는 **부르는 데가 없어** 승격하지 않았다 — 죽은 것을 공용으로
-> 올리면 다음 사람이 살아 있는 줄 안다.)
+> 올리면 다음 사람이 살아 있는 줄 안다. ⚠️정확히는 *전역* `settings.json` 템플릿에만
+> 남아 있고 **라이브 설정엔 `hooks` 키 자체가 없어** 08-09 이후 안 돈다. 소비자인
+> `SENTINEL_SESSIONS` 도 두 레포 다 안 켜서, 지금 세션교차 판정은 꺼져 있는 상태다.)
+
+## memory_link.py
+
+SessionStart — 프로젝트 메모리(`~/.claude/projects/<슬러그>/memory`)를 Drive 공용 폴더로 잇는다.
+
+환경변수 (shim 이 설정):
+- `MEMORY_DRIVE_NAME` — Drive 쪽 폴더 이름 (예: `coupang-v2-memory`). **없으면 아무것도 안 한다**
+- `MEMORY_DRIVE_ROOT` — 공용 루트 (기본 `G:\내 드라이브\claude-sync`)
+
+self-test: `python ~/claude/gg-harness/hooks/memory_link.py --selftest` (8 cases)
+
+> **왜 생겼나 (2026-08-13):** 슬러그는 **작업 폴더 절대경로**에서 나온다. 그래서 레포를
+> 옮기면 슬러그가 바뀌고 새 자리에 **빈 memory 폴더**가 생긴다 — 그날부터 그 레포
+> 세션은 메모리를 0개로 보는데 **에러가 안 난다.** 북마트가 `Desktop\bookmart` →
+> `Desktop\북마트\bookmart` 로 옮긴 08-10 이후 **사흘간 447건을 못 보고 돌았다.**
+> 이걸 만들던 전역 훅은 라이브 `settings.json` 에서 사라진 지 오래였고 아무도 몰랐다.
+> 그래서 배선을 **레포 안**(`.claude/settings.json` + shim)으로 내렸다 — 레포가 옮겨가도
+> 워크트리를 따도 배선이 따라온다.
+>
+> ⚠️ **내용이 든 실폴더는 절대 안 건드린다**(경고만). 지우고 잇는 순간 그 레포가
+> 로컬에만 쌓아둔 메모리가 사라진다. 빈 폴더일 때만 링크로 바꾼다.
+> ⚠️ 옛 전역 훅은 `if(Test-Path $m){exit}` 라 **빈 폴더가 있으면 영영 안 이었다** —
+> 링크가 끊긴 바로 그 상태를 통과시키는 조건이었다.
