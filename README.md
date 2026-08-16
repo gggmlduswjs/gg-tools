@@ -49,6 +49,20 @@ dev harvest         커밋 → rebase → push → PR → 머지 → 자동배�
 터미널 그냥 끄기      워크트리 정리는 다음 `dev cp` 가 한다
 ```
 
+`dev cp` 는 **폴더를 복사하지 않는다** — git worktree 다. 본체와 커밋 이력을 공유하는 또 하나의 작업 자리를 연다.
+
+```
+Coupang_v2/                  본체(main) — 여기서 작업하지 않는다
+  .git/  .venv/              진짜 저장소 + 파이썬 환경 (한 벌뿐)
+Coupang_v2-wt/<이름>/         dev cp 가 만드는 자리
+  .git                       파일 한 줄 → gitdir: ../Coupang_v2/.git/worktrees/<이름>
+  .env                       유일하게 복사되는 것
+  .dev/ src/ docs/           origin/main 시점의 파일 (.venv 는 없다 — 본체 걸 쓴다)
+    └ plans/{be,fe,arch}/<이름>_plan.md      ← 계획이 여기 앉는다
+    └ harness/phases/<이름>/step*.md         ← /harness 가 여기에 쪼갠다
+    └ _archive/harness_phases/               ← 끝나면 자동으로 여기로 빠진다
+```
+
 | 명령 | 하는 일 |
 |---|---|
 | `dev cp <이름>` / `dev bm <이름>` | 워크트리 생성 + claude 시작. 이름 생략 시 물어본다(엔터=시각 도장) |
