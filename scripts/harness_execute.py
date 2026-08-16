@@ -1141,6 +1141,7 @@ class StepExecutor:
         self._update_top_index("completed")
 
         self._stage_paths(self._new_changed_paths())
+        self._archive_phase_dir()
         if self._run_git("diff", "--cached", "--quiet").returncode != 0:
             msg = f"chore({self._phase_name}): mark phase completed"
             r = self._run_git("commit", "-m", msg)
@@ -1159,6 +1160,34 @@ class StepExecutor:
         print(f"  Phase '{self._phase_name}' completed!")
         print(f"{'='*60}")
         self._report_parent_plan(index)
+
+    ARCHIVE_REL = ".dev/_archive/harness_phases"
+
+    def _archive_phase_dir(self):
+        """끝난 phase 폴더를 아카이브로 내린다 — `phases/` 에는 **진행 중인 것만** 남긴다.
+
+        만들기(`plan_to_phase.py`)와 끝내기(여기)는 있는데 **치우기가 없었다.** `_finalize` 가
+        자기 손으로 커밋하니 완료분이 main 으로 가고, 새 워크트리를 딸 때마다 끝난 일이 통째로
+        딸려온다(2026-08-16 실측: 15개 전부 completed/폐기, 3.6M). 같은 걸 08-08 에 손으로 한 번
+        치웠지만 **절차를 안 만들어** 8일 만에 재발했다 — 그래서 사람 손이 아니라 여기서 한다.
+
+        ⚠️ 지우지 않는다. 최상위 `index.json` 의 항목과 `note`(「왜 기각했나」 같은 판단)도
+        건드리지 않으므로, 목록과 이유는 그대로 남고 **폴더만** 시야에서 빠진다.
+
+        `_stage_paths` **뒤**에 불러야 한다 — 그때 파일이 추적 상태라 `git mv` 가 먹고,
+        이동이 그대로 같은 커밋에 담긴다.
+        """
+        dest_rel = f"{self.ARCHIVE_REL}/{self._phase_dir_name}"
+        if (ROOT / dest_rel).exists():
+            print(f"  Skip 아카이브: {dest_rel} 이 이미 있다")
+            return
+        (ROOT / self.ARCHIVE_REL).mkdir(parents=True, exist_ok=True)
+        r = self._run_git("mv", f"{PHASES_REL}/{self._phase_dir_name}", dest_rel)
+        if r.returncode != 0:
+            # 실패해도 phase 완료는 유효하다 — 아카이브만 못 한 것이니 알리고 넘어간다.
+            print(f"  Skip 아카이브({dest_rel}): {r.stderr.strip()}")
+            return
+        print(f"  ✓ 아카이브: {PHASES_REL}/{self._phase_dir_name} → {dest_rel}")
 
     # 진행판 마커. 상태는 네 가지다 — `[ ]` 미착수 · `[~]` 진행 · `[x]` 완료 · `[!]` 막힘.
     # ⚠️ 리스트(`- [x]`)만 세면 안 된다. 이 레포의 정본 진행판은 **마크다운 표**이고 셀이
