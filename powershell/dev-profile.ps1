@@ -174,9 +174,22 @@ function devharvest {
   if ($branch -eq $main) { Write-Warning "$main 브랜치에선 harvest 불가 — 워크트리 안에서 실행."; return }
   if (-not (Get-Command gh -EA SilentlyContinue)) { Write-Warning 'gh CLI(github) 필요 — PR 생성/머지에 씀.'; return }
 
-  # 1) 남은 변경 커밋 (worktree 격리 → add -A = 이 세션 것만)
-  git -C $root add -A
-  if (@(git -C $root status --porcelain).Count -gt 0) {
+  # 1) 남은 변경 커밋 — ★담기 전에 눈으로 보여주고 확인받는다.
+  #    ⛔ 예전엔 묻지 않고 `git add -A` 였다. "worktree 격리 = 이 세션 것만" 이라는 전제였는데
+  #    그 전제가 깨진다: 2026-08-13 에 두 세션이 한 워크트리를 같이 쓰다 남의 미커밋 3파일이
+  #    딸려 들어갔고, 그게 이미 걷어낸 코드라 그대로 갔으면 **지운 파일이 되살아났다.**
+  #    훅이 만드는 산출물(메모리 미러 등)도 늘 떠 있어 조용히 섞인다.
+  #    harvest 는 **머지·배포까지 자동으로 가므로 사후 경고로는 늦다** — 여기서 한 번 세운다.
+  $dirty = @(git -C $root status --porcelain)
+  if ($dirty.Count -gt 0) {
+    Write-Host "`n담을 변경 $($dirty.Count)건 — 내가 고친 것만 있는지 봐라:" -ForegroundColor Yellow
+    $dirty | ForEach-Object { Write-Host "  $_" }
+    $ans = Read-Host "`n전부 담아서 landed 한다 (엔터=진행 · n=중단)"
+    if ($ans -match '^\s*[nN]') {
+      Write-Host '중단 — 아무것도 안 밀었다. 필요한 것만 직접 add/commit 한 뒤 다시 실행해라.'
+      return
+    }
+    git -C $root add -A
     if (-not $Message) { $Message = "harvest: $branch landed" }
     git -C $root commit -q -m $Message; Write-Host "커밋: $Message"
   }
