@@ -20,4 +20,10 @@ python .dev/harness/execute.py <task> --no-branch --dry-run
 python .dev/harness/execute.py <task> --no-branch
 ```
 
+7. ⛔ **`Phase completed` 로 세션을 끝내지 않는다.** phase 는 상위 계획의 한 조각일 뿐이다.
+   마지막 step 이 끝나면 phase `index.json` 의 `source_plan` 을 열어 **① 이 phase 로 닫힌 항목을
+   진행판에 체크하고 ② 남은 항목 수를 보고하고 ③ 다음 phase 후보를 사용자에게 제시**한다.
+   완료 기준은 「step 을 다 돌았다」가 아니라 **「상위 계획에 남은 건수 0」**이다.
+   `source_plan` 이 비어 있으면 그것부터 채운다 — 상위를 모르는 phase 는 끝나는 순간 맥락이 증발한다.
+
 `execute.py`는 각 레포 `.dev/harness/`에 둔다. commit, push, worktree 생성, 운영 DB 쓰기를 하지 않는다.

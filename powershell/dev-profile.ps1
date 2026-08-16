@@ -5,7 +5,7 @@
 #   dev cp 광고   → Coupang_v2 격리 worktree에서 claude 자동 시작
 #   dev r         → 모든 세션(메인+워크트리) 목록에서 골라 이어하기
 #   dev           → 사용법
-#   (이름 생략 시 자동 명명. 기존 worktree 이름이면 재사용.)
+#   (이름 생략 시 한 줄 물어본다. 엔터 = 시각 도장으로 자동 명명. 기존 worktree 이름이면 재사용.)
 #
 # 프로젝트 위치: 기본 = <사용자>\Desktop\북마트\bookmart / <사용자>\Desktop\쿠팡\Coupang_v2.
 # 다른 경로에 두는 PC면 $env:BOOKMART_ROOT / $env:COUPANG_ROOT 를 직접 지정.
@@ -34,18 +34,28 @@ else {
     (Join-Path $desktop 'Coupang_v2')
 }
 
+# 이름을 안 주면 워크트리도 브랜치도 `s08161850` 같은 시각 도장이 되어, 목록만 봐서는 어느 자리가
+# 뭘 하던 곳인지 알 수 없다(2026-08-16 실측: 쿠팡 워크트리 6개 중 3개가 시각 도장). 그래서 한 줄
+# 물어본다. ★폴백은 없애지 않는다 — "일단 켜본다"도 실제 용례라 엔터로 그냥 통과시킨다.
+function Read-DevName {
+  $stamp = 's' + (Get-Date -Format 'MMddHHmm')
+  $ans = Read-Host "이 세션에서 뭘 하나? (엔터=$stamp)"
+  if (-not $ans) { return $stamp }
+  return ($ans.Trim() -replace '\s+', '-')   # 공백은 git 브랜치명에 못 쓴다 → wt 생성이 실패한다
+}
+
 function dev {
   param([string]$proj, [string]$name)
   switch ($proj) {
     'bm' {
-      if (-not $name) { $name = 's' + (Get-Date -Format 'MMddHHmm') }
+      if (-not $name) { $name = Read-DevName }
       if (-not (Test-Path $Global:BookmartRoot)) { Write-Warning "bookmart 없음: $Global:BookmartRoot (필요시 `$env:DEV_PROJECTS 설정)"; return }
       Set-Location $Global:BookmartRoot
       try { devclean bm } catch { Write-Warning "정리 건너뜀: $_" }   # 아래 'cp' 주석 참고
       & (Join-Path $Global:BookmartRoot '_scripts\bmwt.ps1') start $name   # 생성/재사용 + .venv/.env provision + claude
     }
     'cp' {
-      if (-not $name) { $name = 's' + (Get-Date -Format 'MMddHHmm') }
+      if (-not $name) { $name = Read-DevName }
       if (-not (Test-Path $Global:CoupangRoot)) { Write-Warning "Coupang_v2 없음: $Global:CoupangRoot (필요시 `$env:DEV_PROJECTS 설정)"; return }
       $siblings = Split-Path $Global:CoupangRoot -Parent
       $wt = Join-Path $siblings "Coupang_v2-wt\$name"
