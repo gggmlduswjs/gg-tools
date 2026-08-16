@@ -1,6 +1,6 @@
 {
   "name": "gg-harness",
-  "version": "1.6.0",
+  "version": "1.7.0",
   "description": "북마트·쿠팡 공용 Claude Code plugin. harness/review + wiki(ingest/lint/query) + 진단·검증 skills. 실행기·전역 settings·프로젝트 secret은 포함하지 않는다.",
   "author": {
     "name": "gggmlduswjs",

@@ -10,7 +10,7 @@
     {
       "name": "gg-harness",
       "source": "./gg-harness",
-      "version": "1.6.0",
+      "version": "1.7.0",
       "description": "skills 17개 + slash /harness·/review·wiki-*. 실행기·전역 CLAUDE.md·프로젝트 secret/MCP는 포함하지 않는다.",
       "category": "productivity",
       "keywords": [
