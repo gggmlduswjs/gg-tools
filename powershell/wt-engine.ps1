@@ -387,6 +387,24 @@ function Invoke-Clean($extra) {
   else { Write-Host "제거됨: $wt  + 브랜치 $br" }
 }
 
+# `git status --porcelain` 한 줄이 **버려도 되는 파생물**인가.
+#
+# 2026-08-16 실측: `dev cp <이름>` 으로 만든 worktree 는 claude 가 뜨는 순간
+# SessionStart 훅(memory-mirror)이 `docs/_ai/memory/` 를 써서 **태어나자마자 dirty** 가 된다
+# (신규 worktree 2개 모두 19건). 그래서 모든 worktree 가 아래 dirty 가드에 걸려
+# **자동 정리 대상이 될 수 없었다** — 12h 게이트를 넘겨도 영원히 남는다.
+# 하네스 phase 산출물도 같은 성격이다(2026-08-13: dirty 9개 중 8개가 그것이라 prune 이
+# 늘 "정리 대상 0" 을 반환했다). 둘 다 원본이 따로 있는 파생물이라 버려도 된다.
+function Test-DerivedPath([string]$PorcelainLine) {
+  if (-not $script:DerivedPaths -or @($script:DerivedPaths).Count -eq 0) { return $false }
+  if ($PorcelainLine.Length -le 3) { return $false }
+  $rel = $PorcelainLine.Substring(3)
+  $rel = ($rel -split ' -> ')[-1]          # rename(`R  old -> new`) 은 뒤쪽이 현재 경로
+  $rel = $rel -replace '^"|"$', ''          # quotepath 로 따옴표가 붙은 경우
+  foreach ($d in $script:DerivedPaths) { if ($rel -like "$d*") { return $true } }
+  return $false
+}
+
 # ── prune ────────────────────────────────────────────────────────────────────
 # origin/main 에 고유 커밋이 없는(=빈 세션 or 완전 병합) worktree/브랜치를 정리. 기본 dry-run.
 # 미병합 커밋이 있거나 dirty 하거나 최근 활동이 있으면 절대 건드리지 않는다.
@@ -423,16 +441,21 @@ function Invoke-Prune($extra) {
       $ageH = [int]((New-TimeSpan -Start (Get-Item $idx).LastWriteTime -End (Get-Date)).TotalHours)
       if ($ageH -lt $script:QuietH) { $skip += @{ w=$w; why="활동 ${ageH}h 전 (<$($script:QuietH)h)" }; continue }
     }
-    try { $dirty = @(Get-GitLinesInPath $w.path status --porcelain) }
+    try { $dirtyAll = @(Get-GitLinesInPath $w.path status --porcelain) }
     catch { $skip += @{ w=$w; why="status 판정 실패: $_" }; continue }
-    if ($dirty) { $skip += @{ w=$w; why='dirty(미커밋 변경)' }; continue }
+    # 파생물은 dirty 로 세지 않는다(위 Test-DerivedPath). 몇 건을 무시했는지는 반드시
+    # 노트에 남긴다 — 조용히 버리면 "깨끗했다" 로 읽혀 다음 사람이 판정을 못 뒤집는다.
+    $derivedN = @($dirtyAll | Where-Object { Test-DerivedPath $_ }).Count
+    $dirty    = @($dirtyAll | Where-Object { -not (Test-DerivedPath $_) })
+    if ($dirty) { $skip += @{ w=$w; why="dirty(미커밋 변경 $($dirty.Count)개)" }; continue }
+    $dNote = if ($derivedN) { " · 파생물 ${derivedN}건 무시" } else { '' }
     $rev   = if ($w.branch) { $w.branch } else { Get-GitValueInPath $w.path rev-parse HEAD }
     $ahead = [int](Get-GitValue rev-list --count "origin/$($script:MainBr)..$rev")
-    if ($ahead -eq 0) { $prune += @{ w=$w; ahead=0; note=$(if ($w.branch) { '병합/빈 세션' } else { 'detached(병합됨)' }) } }
+    if ($ahead -eq 0) { $prune += @{ w=$w; ahead=0; note=$(if ($w.branch) { '병합/빈 세션' } else { 'detached(병합됨)' }) + $dNote } }
     else {
       $landed = Get-BranchLanded $rev
       if ($landed -and $landed.present -eq $landed.total) {
-        $prune += @{ w=$w; ahead=$ahead; note="이미 반영(제목 $($landed.present)/$($landed.total) main 에 있음 · ahead $ahead)" }
+        $prune += @{ w=$w; ahead=$ahead; note="이미 반영(제목 $($landed.present)/$($landed.total) main 에 있음 · ahead $ahead)$dNote" }
       }
       elseif ($landed -and $landed.present -gt 0) {
         $keep += @{ w=$w; ahead=$ahead; note="부분 반영 $($landed.present)/$($landed.total)" }   # 사람이 봐야 함
@@ -522,6 +545,11 @@ function Invoke-Wt {
   $script:SweepRefs    = @($Config.SweepRefs)
   $script:CleanHint    = $Config.CleanHint
   $script:MainBr       = if ($Config.MainBranch) { $Config.MainBranch } else { 'main' }
+  # ★버려도 되는 파생물 — prune 의 dirty 판정에서 제외한다(아래 Test-DerivedPath).
+  #   레포가 Config.DerivedPaths 로 덮어쓸 수 있다. 경로는 git 표기(`/`)에 접두 매칭.
+  #   ⛔`.dev/plans/` 는 정본이니 절대 넣지 마라 — 사람이 회수해야 하는 계획 문서다.
+  $script:DerivedPaths = if ($null -ne $Config.DerivedPaths) { @($Config.DerivedPaths) }
+                         else { @('docs/_ai/memory/', '.dev/harness/phases/') }
   $label               = $Config.Label
   # ★배열로 정규화. $Rest 가 스칼라 문자열로 들어오면 $Rest[0] 이 **첫 글자**를 집는다
   #   ('engine-test' → 'e' 로 worktree 가 만들어졌다, 2026-07-28 실측). 위치 인자로 부르면
