@@ -11,6 +11,7 @@ import contextlib
 from dataclasses import dataclass
 import json
 import os
+import re
 import subprocess
 import sys
 import threading
@@ -1157,6 +1158,64 @@ class StepExecutor:
         print(f"\n{'='*60}")
         print(f"  Phase '{self._phase_name}' completed!")
         print(f"{'='*60}")
+        self._report_parent_plan(index)
+
+    # 진행판 마커. 상태는 네 가지다 — `[ ]` 미착수 · `[~]` 진행 · `[x]` 완료 · `[!]` 막힘.
+    # ⚠️ 리스트(`- [x]`)만 세면 안 된다. 이 레포의 정본 진행판은 **마크다운 표**이고 셀이
+    #    `**[x]**` · `` `[~]` `` 처럼 꾸며져 있다(2026-08-16: 리스트만 세다 실제 진행판을
+    #    「체크박스 없음」으로 읽었다). 범례 줄(한 줄에 마커 넷)은 표도 리스트도 아니라 자동 제외된다.
+    _LIST_MARK_RE = re.compile(r"^\s*[-*]\s*\[([ x~!X])\]")
+
+    @classmethod
+    def _progress_marks(cls, text: str) -> list[str]:
+        marks: list[str] = []
+        for line in text.splitlines():
+            stripped = line.strip()
+            if stripped.startswith("|"):
+                for cell in stripped.strip("|").split("|"):
+                    cell = cell.strip().strip("*`").strip()
+                    if len(cell) == 3 and cell[0] == "[" and cell[2] == "]" and cell[1] in " x~!X":
+                        marks.append(cell[1])
+            else:
+                m = cls._LIST_MARK_RE.match(line)
+                if m:
+                    marks.append(m.group(1))
+        return marks
+
+    def _report_parent_plan(self, index: dict):
+        """phase 를 닫은 뒤 **상위 계획으로 돌려보낸다.**
+
+        하네스의 완료(=step 을 다 돌았다)와 레포의 완료(=상위 계획에 남은 건수 0)는 다르다.
+        이 출력이 없으면 `Phase completed!` 가 마지막 줄이 되고, phase 하나가 끝나는 순간
+        전체 계획이 시야에서 사라진다 — 2026-08-16 지적: "하네스를 굴리면 전체 계획을 잃고
+        세부만 개발하다 끝난다". 숫자를 여기서 찍어야 사람도 다음 세션도 어디에 있는지 안다.
+        """
+        source_plan = index.get("source_plan")
+        if not source_plan:
+            print("\n  ⚠️ 상위 계획 미기재 — 이 phase 의 index.json 에 `source_plan` 이 없다.")
+            print("     상위를 모르는 phase 는 끝나는 순간 맥락이 증발한다. 먼저 채워라.")
+            return
+
+        print(f"\n  └ 상위 계획: {source_plan}")
+        plan_path = ROOT / source_plan
+        if not plan_path.exists():
+            print("     ⚠️ 그 파일이 없다(이사·삭제·오타). 경로부터 고쳐라 — 링크가 끊긴 phase다.")
+            return
+
+        marks = self._progress_marks(plan_path.read_text(encoding="utf-8"))
+        if not marks:
+            print("     진행판(체크박스)이 없다 — 남은 일은 사람이 눈으로 세야 한다.")
+            return
+
+        done = sum(1 for m in marks if m in "xX")
+        blocked = marks.count("!")
+        left = len(marks) - done
+        print(f"     진행판: {done}/{len(marks)} 완료 · 남은 항목 {left}건" +
+              (f" (그중 막힘 {blocked}건)" if blocked else ""))
+        if left:
+            print(f"     ⛔ 아직 끝이 아니다. 이 phase 로 닫힌 항목을 체크하고, 남은 {left}건 중에서 다음을 골라라.")
+        else:
+            print("     ✅ 남은 건수 0 — 상위 계획이 닫혔다. 사장님께 보고하라.")
 
 
 def main():
