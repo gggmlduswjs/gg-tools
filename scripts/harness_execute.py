@@ -12,6 +12,7 @@ from dataclasses import dataclass
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 import threading
@@ -1181,12 +1182,30 @@ class StepExecutor:
         if (ROOT / dest_rel).exists():
             print(f"  Skip 아카이브: {dest_rel} 이 이미 있다")
             return
-        (ROOT / self.ARCHIVE_REL).mkdir(parents=True, exist_ok=True)
+        arch_dir = ROOT / self.ARCHIVE_REL
+        arch_dir.mkdir(parents=True, exist_ok=True)
+        # ⚠️ 레포 `.gitignore` 는 `.dev/harness/phases/**/*-output.json` 만 막는다. 산출물을
+        # 아카이브로 옮기면 그 규칙 **밖으로 나가** 수 MB 짜리 실행 로그가 커밋에 딸려간다.
+        # 레포마다 .gitignore 를 손보게 하면 잊는 곳이 생기니, 아카이브 자리가 스스로 막는다.
+        gitignore = arch_dir / ".gitignore"
+        if not gitignore.exists():
+            gitignore.write_text("*-output.json\n", encoding="utf-8")
+            self._run_git("add", "--", f"{self.ARCHIVE_REL}/.gitignore")
         r = self._run_git("mv", f"{PHASES_REL}/{self._phase_dir_name}", dest_rel)
         if r.returncode != 0:
             # 실패해도 phase 완료는 유효하다 — 아카이브만 못 한 것이니 알리고 넘어간다.
             print(f"  Skip 아카이브({dest_rel}): {r.stderr.strip()}")
             return
+
+        # ⚠️ `git mv` 는 **추적 파일만** 옮긴다. gitignore 된 실행 산출물
+        # (`step*-output.json` — 회차당 수 MB 다)이 그대로 남아 **빈 껍데기 폴더**가 된다.
+        # 그러면 정리한 표시가 안 나고, 목록에 이름만 남아 「진행 중인 것뿐」이라는 약속이 깨진다.
+        # 2026-08-16 본체 실측: 그렇게 남은 폴더 5개 · 9.7MB.
+        src = ROOT / PHASES_REL / self._phase_dir_name
+        if src.is_dir():
+            for leftover in list(src.iterdir()):
+                shutil.move(str(leftover), str(ROOT / dest_rel / leftover.name))
+            src.rmdir()
         print(f"  ✓ 아카이브: {PHASES_REL}/{self._phase_dir_name} → {dest_rel}")
 
     # 진행판 마커. 상태는 네 가지다 — `[ ]` 미착수 · `[~]` 진행 · `[x]` 완료 · `[!]` 막힘.
