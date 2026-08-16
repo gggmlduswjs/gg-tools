@@ -34,6 +34,33 @@ claude/                          ← marketplace repo (gggmlduswjs/claude)
 gh repo clone gggmlduswjs/claude ~/claude
 ```
 
+## 일상 워크플로 (한 사이클)
+
+```
+dev cp <이름>       시작 — 워크트리 만들고 claude 를 띄운다 (이름 안 주면 물어본다)
+   ↓                이 이름이 워크트리 = 브랜치 = PR 이름
+계획                plan 모드로 합의 → .dev/plans/{be,fe,arch}/*_plan.md
+   ↓
+/harness <작업>     계획을 phase/step 으로 (승인 전엔 파일을 안 만든다)
+python .dev/harness/execute.py <작업> --no-branch
+   ↓                끝나면 상위 계획의 「남은 N건」을 찍는다
+dev harvest         커밋 → rebase → push → PR → 머지 → 자동배포
+   ↓                담기 전에 파일 목록을 보여주고 한 번 세운다
+터미널 그냥 끄기      워크트리 정리는 다음 `dev cp` 가 한다
+```
+
+| 명령 | 하는 일 |
+|---|---|
+| `dev cp <이름>` / `dev bm <이름>` | 워크트리 생성 + claude 시작. 이름 생략 시 물어본다(엔터=시각 도장) |
+| `dev r` | 열린 세션 목록에서 골라 이어하기 |
+| `dev harvest ["메시지"]` | 커밋→rebase→push→PR→머지→배포. 실패하면 즉시 멈추고 아무것도 안 민다 |
+| `dev clean [bm\|cp]` | 머지된 워크트리 정리(`dev cp` 가 시작할 때 자동으로 돈다) |
+
+⛔ `cd` + `claude` 로 직접 시작하지 마라 — `dev cp` 안의 자동 정리를 통째로 건너뛴다.
+⚠️ `Phase completed` 는 끝이 아니다. 남은 건수가 0 이 되면 계획 문서를 `> 상태: 완료` 로 **사람이** 닫는다.
+
+상세 규칙·함정(worktree 정리 기준·codex 샌드박스·공용 자산 위치)은 **[운영_워크플로우.md](운영_워크플로우.md)** 가 정본이다.
+
 ## 역할 분리
 
 | 층 | 자리 | 예 |
@@ -46,7 +73,7 @@ gh repo clone gggmlduswjs/claude ~/claude
 
 | 커맨드 | 하는 일 |
 |---|---|
-| `/harness <작업>` | phase/step 설계. 실행은 `python .dev/harness/execute.py <task>` |
+| `/harness <작업>` | phase/step 설계. 실행은 `python .dev/harness/execute.py <task>`. 끝나면 상위 계획의 남은 건수까지 보고한다 |
 | `/review [범위]` | 문서·운영 안전 읽기 전용 리뷰 |
 | `/wiki-ingest` | raw → 세컨드 브레인 위키 통합 |
 | `/wiki-lint` | 위키 건강검진 |
