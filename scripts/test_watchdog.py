@@ -53,7 +53,10 @@ def test_천장은_남아있다():
     code = "import time,sys\nfor i in range(60):\n    print(i, flush=True)\n    time.sleep(0.2)\n"
     rc, out, err = self._run_agent_watched([PY, "-c", code], "", None)
     assert rc == 124, f"천장에 걸렸어야 한다 (rc={rc})"
-    assert "천장" in err, err
+    # 무응답으로 잘린 것과 **구별되는지**가 요점이다 (위 테스트는 "출력이 한 줄도 없었다" 를 본다).
+    # ⚠️ 문구 대조라 코드가 말을 바꾸면 여기가 깨진다 — 실제로 `천장`→`step 예산` 으로 바뀔 때
+    #    이 줄을 안 고쳐 한동안 빨간 채로 있었다(1ec966d).
+    assert "step 예산" in err, err
 
 
 def test_무응답_기본값이_긴_검증명령을_덮는다():
