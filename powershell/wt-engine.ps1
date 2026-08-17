@@ -275,6 +275,30 @@ function Get-WorktreeEntries {
   return $entries
 }
 
+# 잔해 = 폴더는 있는데 worktree 등록이 없는 것(옛 사고의 흔적: `.git` 만 사라진 폴더).
+# **두 곳을 다 본다** — Resolve-WorktreePath 와 같은 이유다(new/start 는 ../<WtDir>/,
+# Claude Code 의 EnterWorktree 는 <repo>/.claude/worktrees/). ../<WtDir>/ 만 보던 탓에
+# 후자의 잔해가 목록에 아예 안 떴고, 82MB 가 쌓인 걸 사람이 폴더를 직접 열어보고서야
+# 찾았다(2026-08-06, 5개). 어디 있는지 알아야 지우므로 위치(label)도 같이 준다.
+# ★list 와 prune 이 **같은 판정**을 쓰게 함수로 뺐다 — 예전엔 list 가 표시만 하고
+#   prune 은 `git worktree list` 등록 항목만 후보로 골라, 잔해가 영구 잔류했다.
+# $seen = 정규화 경로(대문자 구분 없음) → $true. 파일은 대상이 아니다(-Directory).
+function Get-StaleFolders([string]$main, $seen) {
+  $roots = @(
+    @{ path = (Join-Path (Split-Path $main -Parent) $script:WtDir); label = $script:WtDir },
+    @{ path = (Join-Path $main '.claude\worktrees');                label = '.claude' }
+  )
+  $out = @()
+  foreach ($r in $roots) {
+    if (-not (Test-Path $r.path)) { continue }
+    foreach ($d in (Get-ChildItem $r.path -Directory -ErrorAction SilentlyContinue)) {
+      if ($seen.ContainsKey($d.FullName.TrimEnd('\'))) { continue }
+      $out += [pscustomobject]@{ path = $d.FullName.TrimEnd('\'); label = $r.label }
+    }
+  }
+  return $out
+}
+
 # ── list ─────────────────────────────────────────────────────────────────────
 # **삭제하지 않는다** — 사람이 보고 clean 을 고른다.
 function Invoke-List {
@@ -310,22 +334,11 @@ function Invoke-List {
     }
   }
 
-  # 잔해 = 폴더는 있는데 worktree 등록이 없는 것(옛 사고의 흔적: `.git` 만 사라진 폴더).
-  # **두 곳을 다 본다** — Resolve-WorktreePath 와 같은 이유다(new/start 는 ../<WtDir>/,
-  # Claude Code 의 EnterWorktree 는 <repo>/.claude/worktrees/). ../<WtDir>/ 만 보던 탓에
-  # 후자의 잔해가 목록에 아예 안 떴고, 82MB 가 쌓인 걸 사람이 폴더를 직접 열어보고서야
-  # 찾았다(2026-08-06, 5개). 어디 있는지 알아야 지우므로 위치도 같이 적는다.
-  $scanRoots = @(
-    @{ path = (Join-Path (Split-Path $main -Parent) $script:WtDir); label = $script:WtDir },
-    @{ path = (Join-Path $main '.claude\worktrees');                label = '.claude' }
-  )
-  foreach ($r in $scanRoots) {
-    if (-not (Test-Path $r.path)) { continue }
-    foreach ($d in (Get-ChildItem $r.path -Directory -ErrorAction SilentlyContinue)) {
-      if ($seen.ContainsKey($d.FullName.TrimEnd('\'))) { continue }
-      $rows += [pscustomobject]@{ 상태='잔해'; 이름=$d.Name; 브랜치="(.git 없음 · $($r.label))"
-                                  미커밋='?'; 커밋='?'; 반영='?'; 활동='—' }
-    }
+  # 잔해(위 Get-StaleFolders — prune 과 같은 판정). 여기선 파일 수를 세지 않는다:
+  # list 는 매번 도는 명령이라 재귀 스캔을 넣으면 느려진다. 그건 prune 에서만.
+  foreach ($s in (Get-StaleFolders $main $seen)) {
+    $rows += [pscustomobject]@{ 상태='잔해'; 이름=(Split-Path $s.path -Leaf); 브랜치="(.git 없음 · $($s.label))"
+                                미커밋='?'; 커밋='?'; 반영='?'; 활동='—' }
   }
 
   $order = @{ '살아있음' = 0; '죽은듯' = 1; '잔해' = 2 }
@@ -425,6 +438,17 @@ function Invoke-Prune($extra) {
   $entries = Get-WorktreeEntries
   $prune = @(); $keep = @(); $skip = @()
 
+  # 잔해 폴더(.git 없음) — 등록이 없으니 `git worktree list` 만 보던 옛 코드는 영구히 못 지웠다.
+  $seen = @{}
+  foreach ($w in $entries) { $seen[($w.path -replace '/', '\').TrimEnd('\')] = $true }
+  $stale = @(Get-StaleFolders $main $seen | Where-Object {
+    ($_.path -ine $main) -and (-not ($cur -and ($_.path -ieq $cur)))
+  } | ForEach-Object {
+    # git 이 못 되살리는 폴더다(.git 없음). 사람이 숫자를 보고 판단하도록 파일 수를 센다.
+    $files = @(Get-ChildItem $_.path -Recurse -File -Force -ErrorAction SilentlyContinue).Count
+    [pscustomobject]@{ path = $_.path; label = $_.label; files = $files }
+  })
+
   foreach ($w in $entries) {
     $pN = try { (Resolve-Path $w.path -ErrorAction Stop).Path.TrimEnd('\', '/') } catch { $w.path.TrimEnd('\', '/') }
     if ($pN -ieq $main) { continue }                                          # main checkout — 절대 제외
@@ -464,6 +488,30 @@ function Invoke-Prune($extra) {
     }
   }
 
+  # worktree 없이 남은 브랜치 — 누적의 본체(어떤 경로로도 안 지워지던 것들).
+  # ★ahead 0 만 보면 squash 머지된 것이 전부 남는다(ahead 1~9 로 뜬다) — Get-BranchLanded 로
+  #   제목이 전부 main 에 있는지까지 본다. 부분 반영·판정불가($null)는 사람이 봐야 하니 남긴다.
+  # ★판정을 --apply 체크보다 **앞**에 둔다 — 예전엔 apply 뒤에 있어 dry-run 에 안 보였고,
+  #   사람이 무엇이 지워질지 모른 채 --apply 를 눌러야 했다.
+  $wtBranches = @($entries | ForEach-Object { $_.branch } | Where-Object { $_ })
+  $refs    = if ($script:SweepRefs) { $script:SweepRefs } else { @('refs/heads') }
+  # ★안 지우는 고아도 $orphanKeep 에 담아 '유지' 에 찍는다 — **표시만**이다.
+  #   안 보이면 다음 사람이 같은 브랜치를 또 판다(2026-08-17: wip/order-book-month 가
+  #   어느 구역에도 안 나와, 왜 안 지워졌는지를 손으로 다시 재야 했다).
+  $orphans = @(); $orphanKeep = @()
+  foreach ($b in (& git for-each-ref --format='%(refname:short)' @refs 2>$null)) {
+    if ($b -eq $script:MainBr -or ($wtBranches -contains $b)) { continue }
+    $bAhead = [int](Get-GitValue rev-list --count "origin/$($script:MainBr)..$b")
+    if ($bAhead -eq 0) { $orphans += @{ branch=$b; ahead=0; note='병합됨' }; continue }
+    $landed = Get-BranchLanded $b
+    if ($landed -and $landed.present -eq $landed.total) {
+      $orphans += @{ branch=$b; ahead=$bAhead; note="이미 반영(제목 $($landed.present)/$($landed.total) · ahead $bAhead)" }
+    }
+    elseif ($null -eq $landed)      { $orphanKeep += @{ branch=$b; note="판정 불가 (ahead $bAhead)" } }
+    elseif ($landed.present -eq 0)  { $orphanKeep += @{ branch=$b; note="진짜 미반영 (제목 0/$($landed.total) · ahead $bAhead)" } }
+    else                            { $orphanKeep += @{ branch=$b; note="부분 $($landed.present)/$($landed.total) (ahead $bAhead)" } }
+  }
+
   Write-Host ""
   Write-Host "── 정리 대상 (고유 커밋 0 또는 이미 반영) ──" -ForegroundColor Yellow
   if (-not $fresh) {
@@ -477,11 +525,20 @@ function Invoke-Prune($extra) {
   if (-not $prune) { Write-Host "  (없음)" }
   foreach ($x in $prune) { Write-Host ("  {0}  [{1}]  {2}" -f $x.w.path, ($x.w.branch ?? 'detached'), $x.note) }
   Write-Host ""
+  Write-Host "── 잔해 폴더 (.git 없음 — git 이 못 되살린다) ──" -ForegroundColor Yellow
+  if (-not $stale) { Write-Host "  (없음)" }
+  foreach ($x in $stale) { Write-Host ("  {0}  [{1}]  파일 {2}개" -f $x.path, $x.label, $x.files) }
+  Write-Host ""
+  Write-Host "── 고아 브랜치 (워크트리 없음) ──" -ForegroundColor Yellow
+  if (-not $orphans) { Write-Host "  (없음)" }
+  foreach ($x in $orphans) { Write-Host ("  {0}  {1}" -f $x.branch, $x.note) }
+  Write-Host ""
   Write-Host "── 유지 (미병합 커밋 있음 — 손대지 않음) ──" -ForegroundColor Cyan
-  if (-not $keep) { Write-Host "  (없음)" }
+  if (-not $keep -and -not $orphanKeep) { Write-Host "  (없음)" }
   foreach ($x in $keep) {
     Write-Host ("  {0}  [{1}]  ahead {2}{3}" -f $x.w.path, $x.w.branch, $x.ahead, $(if ($x.note) { "  ← $($x.note)" } else { '' }))
   }
+  foreach ($x in $orphanKeep) { Write-Host ("  {0}  [고아]  {1}" -f $x.branch, $x.note) }
   if ($skip) {
     Write-Host ""; Write-Host "── 건너뜀 ──"
     foreach ($x in $skip) { Write-Host ("  {0}  ({1})" -f $x.w.path, $x.why) }
@@ -517,17 +574,20 @@ function Invoke-Prune($extra) {
     $n++
   }
 
-  # worktree 없이 남은 병합 브랜치도 정리 — 누적의 본체(어떤 경로로도 안 지워지던 것들).
-  $wtBranches = @($entries | ForEach-Object { $_.branch } | Where-Object { $_ })
-  $refs = if ($script:SweepRefs) { $script:SweepRefs } else { @('refs/heads') }
-  foreach ($b in (& git for-each-ref --format='%(refname:short)' @refs 2>$null)) {
-    if ($b -eq $script:MainBr -or ($wtBranches -contains $b)) { continue }
-    if ([int](Get-GitValue rev-list --count "origin/$($script:MainBr)..$b") -eq 0) {
-      $bsha = Get-GitValue rev-parse --short=8 $b
-      Invoke-GitShow @('branch', '-D', $b) | Out-Null
-      Write-Host "브랜치 삭제(고아·병합됨): $b $bsha"
-      $n++
-    }
+  # 잔해 폴더는 등록이 없으니 `git worktree remove` 가 안 먹는다 — 폴더째 지운다.
+  foreach ($x in $stale) {
+    Remove-LegacyLinks $x.path                                # ★재귀 삭제 전에 링크부터
+    Remove-Item $x.path -Recurse -Force -ErrorAction SilentlyContinue
+    Write-Host ("제거(잔해): {0} · 파일 {1}개" -f $x.path, $x.files)
+    $n++
+  }
+
+  # 고아 브랜치(위에서 판정한 것만 지운다).
+  foreach ($x in $orphans) {
+    $bsha = Get-GitValue rev-parse --short=8 $x.branch
+    Invoke-GitShow @('branch', '-D', $x.branch) | Out-Null
+    Write-Host "브랜치 삭제(고아·$($x.note)): $($x.branch) $bsha"
+    $n++
   }
 
   Invoke-GitShow worktree prune | Out-Null
