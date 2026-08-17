@@ -494,7 +494,11 @@ function Invoke-Prune($extra) {
   # ★판정을 --apply 체크보다 **앞**에 둔다 — 예전엔 apply 뒤에 있어 dry-run 에 안 보였고,
   #   사람이 무엇이 지워질지 모른 채 --apply 를 눌러야 했다.
   $wtBranches = @($entries | ForEach-Object { $_.branch } | Where-Object { $_ })
-  $refs    = if ($script:SweepRefs) { $script:SweepRefs } else { @('refs/heads') }
+  # ★@(...) 를 벗기지 마라. `if` 식은 1원소 배열을 **String 으로 언랩**하고, String 에
+  #   `@refs` splat 을 걸면 인자가 통째로 사라져 for-each-ref 가 0줄을 낸다(에러 없이).
+  #   SweepRefs 가 빈 Coupang 은 이 폴백을 타서 고아 쓸기가 조용히 아무것도 안 했다
+  #   (2026-08-17 실측: 고아 76개 → 0개). SweepRefs 가 2개인 bookmart 는 배열이 유지돼 멀쩡했다.
+  $refs    = @(if ($script:SweepRefs) { $script:SweepRefs } else { 'refs/heads' })
   # ★안 지우는 고아도 $orphanKeep 에 담아 '유지' 에 찍는다 — **표시만**이다.
   #   안 보이면 다음 사람이 같은 브랜치를 또 판다(2026-08-17: wip/order-book-month 가
   #   어느 구역에도 안 나와, 왜 안 지워졌는지를 손으로 다시 재야 했다).
