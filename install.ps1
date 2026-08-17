@@ -206,26 +206,49 @@ Write-Host ("  {0,-12} {1}종 (forge 보류 — 나머지는 plugin)" -f 'skills
 # **이 확인이 없으면 "install 성공"이 스킬 없는 환경을 초록으로 덮는다.**
 # 캐시 폴더를 뒤지지 않는다 — 실제 경로가 `cache\gg-harness\gg-harness\1.0.0\...` 라
 # 깊이를 잘못 잡으면 깔려 있는데 X 가 뜬다(2026-08-06 실측). 정본은 installed_plugins.json.
-$scopes = @()
+#
+# ⚠️★★★2026-08-17: **마켓플레이스 add 는 install 이 아니다.** ponytail 은 08-13 에
+#   `known_marketplaces.json` 에 등록되고 레포까지 받아졌는데 `installed_plugins.json` 엔
+#   없어서 **나흘간 스킬이 안 떴다** — 에러도 안 났고, 파일은 디스크에 다 있어서
+#   「깔려 있는데 왜 안 보이지」로 읽혔다. 그래서 여기서 **install 여부만** 본다.
 $reg = Join-Path $dotcl 'plugins\installed_plugins.json'
-if (Test-Path $reg) {
-  $j = Get-Content $reg -Raw | ConvertFrom-Json
-  $e = $j.plugins.'gg-harness@gg-harness'
-  if ($e) { $scopes = @($e | ForEach-Object { $_.scope }) }
+$regJson = if (Test-Path $reg) { Get-Content $reg -Raw | ConvertFrom-Json } else { $null }
+
+function Test-ClaudePlugin {
+  # $Key = 'name@marketplace' · $Required 면 없을 때 install 을 실패로 친다
+  param([string]$Label, [string]$Key, [string]$Marketplace, [switch]$Required)
+  $scopes = @()
+  if ($regJson) {
+    $p = $regJson.plugins.PSObject.Properties[$Key]
+    if ($p -and $p.Value) { $scopes = @($p.Value | ForEach-Object { $_.scope }) }
+  }
+  if ($scopes -contains 'user') {
+    Write-Host ("  {0,-12} OK (user)" -f $Label) -Fore Green
+    return $true
+  }
+  if ($scopes.Count -gt 0) {
+    # ⚠️ project 스코프면 **그 폴더에서만** 뜬다. bookmart·Coupang 세션에선 스킬이 통째로 없다.
+    Write-Host ("  {0,-12} △ scope={1} — 이 폴더에서만 유효하다" -f $Label, ($scopes -join ',')) -Fore Yellow
+    Write-Host "                 user(모든 프로젝트) 로 다시 설치" -Fore Yellow
+    return $false
+  }
+  $color = if ($Required) { 'Red' } else { 'Yellow' }
+  $mark  = if ($Required) { 'X ' } else { '— ' }
+  Write-Host ("  {0,-12} {1} → 아래 두 줄 (한 줄씩 따로)" -f $Label, $mark) -Fore $color
+  Write-Host "                 /plugin marketplace add $Marketplace" -Fore $color
+  Write-Host "                 /plugin install $Key" -Fore $color
+  # ⚠️`/plugin` 은 **Remote Control 세션에서 막힌다**(claude.ai/code 등). 그때는 셸에서:
+  Write-Host "                 (Remote Control 이면 셸에서: claude plugin install $Key)" -Fore DarkGray
+  return $false
 }
-if ($scopes -contains 'user') {
-  Write-Host ("  {0,-12} OK (user)" -f 'plugin') -Fore Green
-} elseif ($scopes.Count -gt 0) {
-  # ⚠️ project 스코프면 **그 폴더에서만** 뜬다. bookmart·Coupang 세션에선 스킬이 통째로 없다.
-  Write-Host ("  {0,-12} △ scope={1} — 이 폴더에서만 유효하다" -f 'plugin', ($scopes -join ',')) -Fore Yellow
-  Write-Host "                 /plugin 메뉴에서 user(모든 프로젝트) 로 다시 설치" -Fore Yellow
-  $ok = $false
-} else {
-  Write-Host ("  {0,-12} X  → Claude Code 에서 아래 두 줄 (한 줄씩 따로)" -f 'plugin') -Fore Red
-  Write-Host "                 /plugin marketplace add gggmlduswjs/claude" -Fore Red
-  Write-Host "                 /plugin install gg-harness@gg-harness" -Fore Red
-  $ok = $false
-}
+
+# gg-harness = 필수. 없으면 harness·review·wiki 스킬이 통째로 없다.
+if (-not (Test-ClaudePlugin -Label 'plugin' -Key 'gg-harness@gg-harness' `
+                            -Marketplace 'gggmlduswjs/claude' -Required)) { $ok = $false }
+# ponytail = 선택. 「가장 게으른 해법」 상시 모드 + 과설계 감사 스킬 5종.
+# ⚠️없어도 install 실패로 치지 않는다 — 이건 취향이지 하네스 부품이 아니다.
+# ⚠️깔면 SessionStart·SubagentStart·UserPromptSubmit 훅이 붙어 **매 프롬프트에 지침이 주입된다.**
+[void](Test-ClaudePlugin -Label 'ponytail' -Key 'ponytail@ponytail' -Marketplace 'DietrichGebert/ponytail')
 if (Test-Path $sync) {
   foreach ($h in $map.Keys) {
     $m = "$dotcl\projects\$h\memory"; $src = "$sync\$($map[$h])"
