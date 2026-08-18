@@ -9,14 +9,17 @@ git 이 옮겨주는 것과 **사람이 손으로 해야 하는 것**을 구분�
 gh auth login                                           # 전부 private 레포다
 gh repo clone gggmlduswjs/claude $env:USERPROFILE\claude
 pwsh $env:USERPROFILE\claude\install.ps1                # 프로필 배선 + ~\.claude 배치 + 메모리 심링크
+New-Item -ItemType Directory -Force "$env:USERPROFILE\Desktop\북마트", "$env:USERPROFILE\Desktop\쿠팡" | Out-Null
 
-cd $env:USERPROFILE\Desktop                             # ★두 레포는 같은 상위 폴더에 나란히
+cd "$env:USERPROFILE\Desktop\쿠팡"
 gh repo clone gggmlduswjs/Coupang_v2
+cd "$env:USERPROFILE\Desktop\북마트"
 gh repo clone gggmlduswjs/bookmart
+cd $env:USERPROFILE\Desktop                             # 나머지는 기본 Desktop 아래
 gh repo clone gggmlduswjs/forge                         # forge 스킬 4종 실물 — 없으면 그 스킬만 안 뜬다
 ```
 
-Desktop 이 아닌 곳에 두면 그 PC 프로필에 `$env:DEV_PROJECTS = '<상위폴더>'`.
+Desktop 이 아닌 곳에 두면 그 PC 프로필에 `$env:BOOKMART_ROOT` / `$env:COUPANG_ROOT` 를 직접 지정.
 
 `install.ps1` 은 **없는 파일만** 채운다(기존 설정 안 덮음). 덮고 싶으면 `-Force`.
 
@@ -37,9 +40,25 @@ Desktop 이 아닌 곳에 두면 그 PC 프로필에 `$env:DEV_PROJECTS = '<상�
 
 ```powershell
 dev cp 테스트          # 워크트리 생성 + claude 실행되면 1번 OK
+bmp 테스트 "북마트 Codex 기획 smoke"       # 북마트 worktree 생성 + codex 실행
+cpp 테스트 "쿠팡 Codex 기획 smoke"         # 쿠팡 worktree 생성 + codex 실행
 .venv\Scripts\python.exe -c "import django, sqlalchemy, pytest, playwright"   # 2-b OK
 .venv\Scripts\python.exe -m pytest -q                                          # 1,197개 수집 (범위 좁히지 마라)
 .venv\Scripts\python.exe -m coupang.ops.deploy.check_drift                     # 드리프트 현황
+```
+
+Codex 단축키 흐름:
+
+```powershell
+bmp 작업명 "목표"   # 북마트: 티키타카 기획만
+bmf                 # 확정 문서/phase 지시문 출력
+bmh phase명         # dry-run 확인 후 하네스 실행
+bms "커밋 메시지"   # 명시 경로 stage → commit → push → PR merge
+
+cpp 작업명 "목표"   # 쿠팡: 티키타카 기획만
+cpf                 # 확정 문서/phase 지시문 출력
+cph phase명         # dry-run 확인 후 하네스 실행
+cps "커밋 메시지"   # 명시 경로 stage → commit → push → PR merge
 ```
 
 ⚠️**`.venv` 를 만든 뒤 폴더를 옮기지 마라.** `Scripts\*.exe` 콘솔 런처는 생성 당시 python

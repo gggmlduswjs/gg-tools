@@ -84,7 +84,7 @@ if ($content -and $content.Contains($marker)) {
 }
 if (-not $wired) {
   Add-Content $PROFILE "`n$marker`n. `"$dev`"`n# <<< dotfiles dev launcher <<<`n"
-  Write-Host "  [배선] $PROFILE  → 새 터미널에서 'dev bm' / '현황' 사용 가능" -Fore Green
+  Write-Host "  [배선] $PROFILE  → 새 터미널에서 'dev bm' / 'bmp' / 'cpp' / '현황' 사용 가능" -Fore Green
 }
 
 # ── 2) ~/.claude 배치 ───────────────────────────────────────────────────
@@ -260,5 +260,9 @@ if (Test-Path $sync) {
   }
 }
 Write-Host ""
-if ($ok) { Write-Host "완료. 새 터미널을 열면 끝." -Fore Green }
+if ($ok) {
+  Write-Host "완료. 새 터미널을 열면 끝." -Fore Green
+  Write-Host "  북마트 Codex: bmp <작업명> `"목표`"  → bmf → bmh <phase> → bms `"msg`"" -Fore DarkGray
+  Write-Host "  쿠팡 Codex:   cpp <작업명> `"목표`"  → cpf → cph <phase> → cps `"msg`"" -Fore DarkGray
+}
 else     { Write-Host "일부 X — 위 줄을 확인. Drive 동기화(초록불) 또는 개발자 모드(심링크 권한)를 먼저." -Fore Yellow }
