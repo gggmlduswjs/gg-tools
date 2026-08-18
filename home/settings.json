@@ -24,41 +24,20 @@
     "refreshInterval": 30
   },
   "enabledPlugins": {
-    "frontend-design@claude-plugins-official": false,
-    "ponytail@ponytail": false,
-    "oh-my-mermaid@oh-my-mermaid": false,
-    "harness@harness-marketplace": false,
-    "claude-md-management@claude-plugins-official": false
+    "gg-harness@gg-harness": true,
+    "ponytail@ponytail": false
   },
   "extraKnownMarketplaces": {
-    "claude-code-plugins": {
+    "gg-harness": {
       "source": {
         "source": "github",
-        "repo": "anthropics/claude-code"
+        "repo": "gggmlduswjs/claude"
       }
     },
     "ponytail": {
       "source": {
         "source": "github",
         "repo": "DietrichGebert/ponytail"
-      }
-    },
-    "oh-my-mermaid": {
-      "source": {
-        "source": "github",
-        "repo": "oh-my-mermaid/oh-my-mermaid"
-      }
-    },
-    "harness-marketplace": {
-      "source": {
-        "source": "github",
-        "repo": "revfactory/harness"
-      }
-    },
-    "claude-plugins-official": {
-      "source": {
-        "source": "github",
-        "repo": "anthropics/claude-plugins-official"
       }
     }
   },
