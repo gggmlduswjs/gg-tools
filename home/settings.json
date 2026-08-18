@@ -3,7 +3,6 @@
     "allow": [],
     "defaultMode": "auto"
   },
-  "model": "opus[1m]",
   "hooks": {
     "SessionStart": [
       {
@@ -22,11 +21,11 @@
     "type": "command",
     "command": "pwsh -NoProfile -File \"C:\\Users\\user\\.claude\\statusline-wrapper.ps1\"",
     "padding": 0,
-    "refreshInterval": 10
+    "refreshInterval": 30
   },
   "enabledPlugins": {
     "frontend-design@claude-plugins-official": false,
-    "ponytail@ponytail": true,
+    "ponytail@ponytail": false,
     "oh-my-mermaid@oh-my-mermaid": false,
     "harness@harness-marketplace": false,
     "claude-md-management@claude-plugins-official": false
@@ -67,7 +66,6 @@
     "baseRef": "head"
   },
   "language": "korean",
-  "effortLevel": "high",
   "autoUpdatesChannel": "latest",
   "tui": "fullscreen",
   "voice": {
