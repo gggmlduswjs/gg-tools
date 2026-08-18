@@ -2,6 +2,19 @@
 # PowerShell 프로필에서 dot-source 해서 쓴다 (install.ps1이 자동 배선).
 #
 #   dev bm 반품   → bookmart 격리 worktree에서 claude 자동 시작
+#   bm-codex 반품 → bookmart 격리 worktree에서 codex 자동 시작
+#   bmc 반품      → bm-codex 별칭
+#   bmc-plan 반품 "목표" → 구현/파일작성 금지 티키타카 기획 세션으로 codex 시작
+#   bmp 반품 "목표"      → bmc-plan 별칭
+#   bmf                → 현재 세션의 합의안을 확정 문서/phase로 정리하라고 Codex에 보낼 문구 출력
+#   bmh phase     → 하네스 dry-run 확인 후 codex로 실행
+#   bmd phase     → 하네스 dry-run만
+#   bmr phase     → 하네스 codex 실행만
+#   bms "msg"     → 현재 worktree 변경을 명시 경로 stage→commit→push→PR merge
+#   cpc 광고      → Coupang_v2 격리 worktree에서 codex 자동 시작
+#   cpp 광고 "목표" → Coupang_v2 구현/파일작성 금지 티키타카 기획 세션
+#   cph/cpd/cpr phase → Coupang_v2 하네스 실행(bmh/bmd/bmr와 동일)
+#   cps "msg"     → 현재 Coupang worktree 변경을 명시 경로 stage→commit→push→PR merge
 #   dev cp 광고   → Coupang_v2 격리 worktree에서 claude 자동 시작
 #   dev r         → 모든 세션(메인+워크트리) 목록에서 골라 이어하기
 #   dev           → 사용법
@@ -77,6 +90,423 @@ function dev {
     { $_ -in 'harvest', 'ship' } { devharvest $name }   # dev harvest ["메시지"] → 현재 워크트리 작업을 PR로 main에 landed→배포
     default { Write-Host "사용: dev bm|cp [이름]  |  dev harvest [msg] = 현재 작업 landed→배포  |  dev r = 이어하기  |  dev clean [bm|cp] = 정리" }
   }
+}
+
+function Enter-BookmartCodexWorktree {
+  param([string]$name)
+  if (-not $name) { $name = Read-DevName }
+  if (-not (Test-Path $Global:BookmartRoot)) {
+    Write-Warning "bookmart 없음: $Global:BookmartRoot (필요시 `$env:DEV_PROJECTS 설정)"
+    return $null
+  }
+
+  Set-Location $Global:BookmartRoot
+  try { devclean bm } catch { Write-Warning "정리 건너뜀: $_" }
+  & (Join-Path $Global:BookmartRoot '_scripts\bmwt.ps1') new $name | Out-Host
+
+  $siblings = Split-Path $Global:BookmartRoot -Parent
+  $wt = Join-Path $siblings "bookmart-wt\$name"
+  if (-not (Test-Path $wt)) {
+    Write-Warning "worktree 없음: $wt"
+    return $null
+  }
+
+  Set-Location $wt
+  return $wt
+}
+
+function bm-codex {
+  # bookmart 전용 Codex 런처. Claude의 `dev bm <name>`과 같은 bmwt/wt-engine을 써서
+  # ../bookmart-wt/<name> 아래에 격리 checkout을 만들고, 그 안에서 codex를 시작한다.
+  param([string]$name)
+  $wt = Enter-BookmartCodexWorktree $name
+  if (-not $wt) { return }
+  if (Get-Command codex -ErrorAction SilentlyContinue) { & codex }
+  else { Write-Warning "codex 못 찾음 — 수동: cd '$wt'; codex" }
+}
+
+function bmc {
+  param([string]$name)
+  bm-codex $name
+}
+
+function bmc-plan {
+  # Claude의 "처음 플랫 모드로 길게 기획"을 Codex initial prompt로 자동 주입한다.
+  # 이 명령은 티키타카 전용이다. 파일 작성은 사용자가 세션 안에서 확정 지시를 한 뒤에만 한다.
+  # 사용: bmc-plan <worktree-name> "목표 설명"
+  param(
+    [string]$name,
+    [Parameter(ValueFromRemainingArguments = $true)][string[]]$ObjectiveParts
+  )
+  if (-not $name) { $name = Read-DevName }
+  $objective = ($ObjectiveParts -join ' ').Trim()
+  if (-not $objective) {
+    $objective = Read-Host "목표"
+  }
+  if (-not $objective) {
+    Write-Warning "목표가 비어 있어 중단"
+    return
+  }
+
+  $wt = Enter-BookmartCodexWorktree $name
+  if (-not $wt) { return }
+
+  $prompt = @"
+이번 세션은 구현 금지. 파일 작성도 금지. 먼저 긴 기획 티키타카만 한다.
+
+목표:
+$objective
+
+작업 계약:
+1. AGENTS.md와 CLAUDE.md를 먼저 읽고, 작업 대상 앱의 CLAUDE.md가 있으면 우선한다.
+2. 관련 .dev/research/{fe,be,arch}/ 와 .dev/plans/{fe,be,arch}/ 문서를 찾아 중복 구현과 완료/폐기 문서를 확인한다.
+3. 화면, 표, 토스트, 정렬, 모달, CSS, 템플릿을 건드릴 가능성이 있으면 docs/reference/공용_부품.md 와 UI/UX 관련 규칙을 먼저 확인한다.
+4. 경쟁 패턴/deprecated 여부는 docs/DETOX_REGISTRY.md에서 확인한다.
+5. 코드 수정, 문서 작성/수정, 하네스 phase 작성, 테스트, 커밋, push는 하지 않는다.
+
+대화 방식:
+1. 먼저 읽은 파일과 기존 계획/중복 패턴을 짧게 보고한다.
+2. 구현 범위, 제외 범위, 위험한 선택지를 질문/제안 형태로 정리한다.
+3. 사용자가 방향을 고르면 계획안을 대화로만 다듬는다.
+4. 사용자가 "확정", "문서화", "phase 만들어", "하네스 준비해", "ㄱㄱ"처럼 명시적으로 말하기 전까지 파일을 만들거나 고치지 않는다.
+
+사용자가 확정 지시를 하면 그때 할 일:
+1. .dev/research/<axis>/<name>_research.md 작성 또는 기존 문서 갱신
+2. .dev/plans/<axis>/<name>_plan.md 작성 또는 기존 문서 갱신
+3. plan에 "Codex 인수인계" 섹션 작성
+4. 실행이 여러 독립 step으로 나뉘면 .dev/harness/phases/<phase>/index.json 과 step<N>.md 작성
+5. phase 이름은 ASCII kebab-case를 선호한다.
+6. 각 step<N>.md에는 먼저 읽을 파일, 수정 예상 파일, 재사용할 함수/서비스/컴포넌트, 건드리지 말 것, 실행 가능한 검증 명령을 포함한다.
+7. worktree 안에서 실행할 것이므로 실행 명령은 python .dev/harness/execute.py <phase> --no-branch --provider codex 기준으로 적는다.
+
+첫 응답:
+- "아직 파일은 만들지 않는다"라고 명시한다.
+- 읽을 문서/파일 목록과 확인할 쟁점을 먼저 제시한다.
+"@
+
+  if (Get-Command codex -ErrorAction SilentlyContinue) { & codex $prompt }
+  else { Write-Warning "codex 못 찾음 — 수동: cd '$wt'; codex <긴 프롬프트>" }
+}
+
+function bmp {
+  param(
+    [string]$name,
+    [Parameter(ValueFromRemainingArguments = $true)][string[]]$ObjectiveParts
+  )
+  bmc-plan $name @ObjectiveParts
+}
+
+function bmf {
+  # bmp 세션 안에 붙여 넣는 확정 지시. 클립보드 실패 환경도 있어서 화면 출력만 한다.
+  @"
+좋아. 이제 이 합의안을 확정 계획으로 정리해.
+
+해야 할 일:
+1. .dev/research/<axis>/<name>_research.md 작성 또는 기존 문서 갱신
+2. .dev/plans/<axis>/<name>_plan.md 작성 또는 기존 문서 갱신
+3. plan에 "Codex 인수인계" 섹션 작성
+4. 실행이 여러 독립 step으로 나뉘면 .dev/harness/phases/<phase>/index.json 과 step<N>.md 작성
+
+금지:
+- 앱 코드 구현 금지
+- 테스트 실행 금지
+- 커밋/push 금지
+- 운영 DB write/SMS 실제 발송/마이그레이션 적용 금지
+
+완료 보고:
+- 만든/갱신한 research/plan/phase 파일
+- 구현 전에 사람이 확인해야 할 범위 리스크
+- 다음에 실행할 정확한 명령:
+  bmd <phase>
+  bmh <phase>
+"@
+}
+
+function Get-BookmartPhaseName {
+  param([string]$phase)
+  if ($phase) { return $phase }
+
+  $phaseRoot = Join-Path (Get-Location) '.dev\harness\phases'
+  if (-not (Test-Path $phaseRoot)) {
+    Write-Warning "phase 폴더 없음: $phaseRoot"
+    return $null
+  }
+
+  $rows = @()
+  foreach ($dir in Get-ChildItem -LiteralPath $phaseRoot -Directory | Where-Object { $_.Name -notin @('_archive', '_triage') }) {
+    $index = Join-Path $dir.FullName 'index.json'
+    if (-not (Test-Path $index)) { continue }
+    try {
+      $json = Get-Content -LiteralPath $index -Raw | ConvertFrom-Json
+      $pending = @($json.steps | Where-Object { $_.status -eq 'pending' }).Count
+      $rows += [pscustomobject]@{ Name = $dir.Name; Pending = $pending }
+    }
+    catch {
+      $rows += [pscustomobject]@{ Name = $dir.Name; Pending = '?' }
+    }
+  }
+
+  $rows = @($rows | Sort-Object Name)
+  if (-not $rows) {
+    Write-Warning '실행 가능한 phase 후보가 없음'
+    return $null
+  }
+  for ($i = 0; $i -lt $rows.Count; $i++) {
+    '{0,2}  {1,-32} pending={2}' -f ($i + 1), $rows[$i].Name, $rows[$i].Pending
+  }
+
+  $pick = Read-Host "`nphase 번호 또는 이름 (취소=Enter)"
+  if (-not $pick) { return $null }
+  if ($pick -match '^\d+$') {
+    $idx = [int]$pick - 1
+    if ($idx -ge 0 -and $idx -lt $rows.Count) { return $rows[$idx].Name }
+    Write-Warning '범위 밖 번호'
+    return $null
+  }
+  return $pick.Trim()
+}
+
+function Invoke-BookmartHarness {
+  param(
+    [string]$phase,
+    [switch]$DryRun,
+    [switch]$Run
+  )
+  $phase = Get-BookmartPhaseName $phase
+  if (-not $phase) { return }
+
+  $cmd = @('.dev/harness/execute.py', $phase, '--no-branch', '--provider', 'codex')
+  if ($DryRun) { $cmd += '--dry-run' }
+  python @cmd
+}
+
+function bmd {
+  param([string]$phase)
+  Invoke-BookmartHarness $phase -DryRun
+}
+
+function bmr {
+  param([string]$phase)
+  Invoke-BookmartHarness $phase -Run
+}
+
+function bmh {
+  # dry-run 프롬프트를 먼저 보여준 뒤 같은 phase를 바로 실행한다.
+  param([string]$phase)
+  $phase = Get-BookmartPhaseName $phase
+  if (-not $phase) { return }
+
+  Invoke-BookmartHarness $phase -DryRun
+  if ($LASTEXITCODE -ne 0) {
+    Write-Warning "dry-run 실패: $phase"
+    return
+  }
+
+  $ans = Read-Host "`n실행할까? (Enter/ㄱㄱ/y=실행, n=중단)"
+  if ($ans -and $ans -notmatch '^(y|Y|ㄱㄱ|go|GO)$') {
+    Write-Host '중단'
+    return
+  }
+
+  Invoke-BookmartHarness $phase -Run
+}
+
+function Get-GitPorcelainPath {
+  param([string]$line)
+  $p = $line.Substring(3)
+  if ($p -match ' -> ') { $p = ($p -split ' -> ', 2)[1] }
+  return $p.Trim('"')
+}
+
+function bms {
+  # 현재 worktree 작업을 commit -> push -> PR merge 한다.
+  # git add -A 금지 계약을 지키기 위해 status에 나온 파일을 경로 배열로 만든 뒤 명시적으로 add한다.
+  param([string]$Message)
+
+  $root = git rev-parse --show-toplevel 2>$null
+  if (-not $root) { Write-Warning 'git repo 아님 — worktree 폴더 안에서 실행해라.'; return }
+
+  $branch = (git -C $root rev-parse --abbrev-ref HEAD).Trim()
+  $main = (git -C $root symbolic-ref --quiet --short refs/remotes/origin/HEAD 2>$null) -replace '^origin/', ''
+  if (-not $main) { $main = 'main' }
+  if ($branch -eq $main) { Write-Warning "$main 브랜치에선 bms 금지 — worktree 브랜치에서 실행해라."; return }
+  if (-not (Get-Command gh -ErrorAction SilentlyContinue)) { Write-Warning 'gh CLI 필요 — PR 생성/머지에 씀.'; return }
+
+  $dirty = @(git -C $root status --porcelain)
+  if ($dirty.Count -gt 0) {
+    Write-Host "`n담을 변경 $($dirty.Count)건 — 내가 고친 것만 있는지 확인:" -ForegroundColor Yellow
+    $dirty | ForEach-Object { Write-Host "  $_" }
+    $ans = Read-Host "`n위 파일을 명시 경로로 stage 한다 (Enter=진행 · n=중단)"
+    if ($ans -match '^\s*[nN]') { Write-Host '중단'; return }
+
+    $paths = @($dirty | ForEach-Object { Get-GitPorcelainPath $_ } | Where-Object { $_ })
+    if (-not $paths) { Write-Warning 'stage할 경로를 못 찾음'; return }
+    git -C $root add -- @paths
+    if ($LASTEXITCODE -ne 0) { Write-Warning 'git add 실패'; return }
+
+    git -C $root diff --cached --stat
+    $ans = Read-Host "`n이 staged diff로 commit 한다 (Enter=진행 · n=중단)"
+    if ($ans -match '^\s*[nN]') { Write-Host '중단 — staged 상태는 유지됨'; return }
+
+    if (-not $Message) { $Message = Read-Host '커밋 메시지' }
+    if (-not $Message) { Write-Warning '커밋 메시지 없음 — 중단'; return }
+    $env:BOOKMART_HOOK_OK = '1'
+    git -C $root commit -m $Message
+    Remove-Item Env:\BOOKMART_HOOK_OK -ErrorAction SilentlyContinue
+    if ($LASTEXITCODE -ne 0) { Write-Warning 'commit 실패'; return }
+  }
+  else {
+    Write-Host '커밋할 변경 없음 — 기존 커밋으로 진행'
+  }
+
+  git -C $root fetch origin $main
+  if ($LASTEXITCODE -ne 0) { Write-Warning 'fetch 실패'; return }
+  git -C $root rebase "origin/$main"
+  if ($LASTEXITCODE -ne 0) {
+    git -C $root rebase --abort 2>$null
+    Write-Warning "rebase 충돌 — 수동 해결 필요. push/merge 안 함."
+    return
+  }
+
+  if ((git -C $root rev-list --count "origin/$main..$branch").Trim() -eq '0') {
+    Write-Host "$main 과 동일 — push/merge할 커밋 없음."
+    return
+  }
+
+  git -C $root push -u origin $branch
+  if ($LASTEXITCODE -ne 0) { Write-Warning 'push 실패'; return }
+
+  Push-Location $root
+  try {
+    gh pr create --fill --head $branch --base $main 2>$null
+    $prUrl = gh pr view $branch --json url -q .url 2>$null
+    gh pr merge $branch --merge
+    if ($LASTEXITCODE -ne 0) {
+      Write-Warning "PR 머지 실패. PR: $prUrl"
+      return
+    }
+  }
+  finally {
+    Pop-Location
+  }
+
+  Write-Host "OK  $branch -> $main 머지. PR: $prUrl" -ForegroundColor Green
+  Write-Host "정리: dev clean bm" -ForegroundColor Gray
+}
+
+function Enter-CoupangCodexWorktree {
+  param([string]$name)
+  if (-not $name) { $name = Read-DevName }
+  if (-not (Test-Path $Global:CoupangRoot)) {
+    Write-Warning "Coupang_v2 없음: $Global:CoupangRoot (필요시 `$env:DEV_PROJECTS 설정)"
+    return $null
+  }
+
+  $siblings = Split-Path $Global:CoupangRoot -Parent
+  $wt = Join-Path $siblings "Coupang_v2-wt\$name"
+  Set-Location $Global:CoupangRoot
+  try { devclean cp } catch { Write-Warning "정리 건너뜀: $_" }
+  if (-not (Test-Path $wt)) { & (Join-Path $Global:CoupangRoot 'wt.ps1') new $name | Out-Host }
+  if (-not (Test-Path $wt)) {
+    Write-Warning "worktree 없음: $wt"
+    return $null
+  }
+
+  Set-Location $wt
+  return $wt
+}
+
+function cp-codex {
+  param([string]$name)
+  $wt = Enter-CoupangCodexWorktree $name
+  if (-not $wt) { return }
+  if (Get-Command codex -ErrorAction SilentlyContinue) { & codex }
+  else { Write-Warning "codex 못 찾음 — 수동: cd '$wt'; codex" }
+}
+
+function cpc {
+  param([string]$name)
+  cp-codex $name
+}
+
+function cp-plan {
+  param(
+    [string]$name,
+    [Parameter(ValueFromRemainingArguments = $true)][string[]]$ObjectiveParts
+  )
+  if (-not $name) { $name = Read-DevName }
+  $objective = ($ObjectiveParts -join ' ').Trim()
+  if (-not $objective) { $objective = Read-Host "목표" }
+  if (-not $objective) { Write-Warning "목표가 비어 있어 중단"; return }
+
+  $wt = Enter-CoupangCodexWorktree $name
+  if (-not $wt) { return }
+
+  $prompt = @"
+이번 세션은 구현 금지. 파일 작성도 금지. 먼저 긴 기획 티키타카만 한다.
+
+목표:
+$objective
+
+작업 계약:
+1. AGENTS.md와 CLAUDE.md를 먼저 읽고, 작업 대상 앱/모듈 CLAUDE.md가 있으면 우선한다.
+2. 관련 .dev/research/{fe,be,arch}/ 와 .dev/plans/{fe,be,arch}/ 문서를 찾아 중복 구현과 완료/폐기 문서를 확인한다.
+3. 코드 수정, 문서 작성/수정, 하네스 phase 작성, 테스트, 커밋, push는 하지 않는다.
+
+대화 방식:
+1. 먼저 읽은 파일과 기존 계획/중복 패턴을 짧게 보고한다.
+2. 구현 범위, 제외 범위, 위험한 선택지를 질문/제안 형태로 정리한다.
+3. 사용자가 방향을 고르면 계획안을 대화로만 다듬는다.
+4. 사용자가 "확정", "문서화", "phase 만들어", "하네스 준비해", "ㄱㄱ"처럼 명시적으로 말하기 전까지 파일을 만들거나 고치지 않는다.
+
+사용자가 확정 지시를 하면 그때 할 일:
+1. .dev/research/<axis>/<name>_research.md 작성 또는 기존 문서 갱신
+2. .dev/plans/<axis>/<name>_plan.md 작성 또는 기존 문서 갱신
+3. plan에 "Codex 인수인계" 섹션 작성
+4. 실행이 여러 독립 step으로 나뉘면 .dev/harness/phases/<phase>/index.json 과 step<N>.md 작성
+5. worktree 안에서 실행할 것이므로 실행 명령은 python .dev/harness/execute.py <phase> --no-branch --provider codex 기준으로 적는다.
+
+첫 응답:
+- "아직 파일은 만들지 않는다"라고 명시한다.
+- 읽을 문서/파일 목록과 확인할 쟁점을 먼저 제시한다.
+"@
+
+  if (Get-Command codex -ErrorAction SilentlyContinue) { & codex $prompt }
+  else { Write-Warning "codex 못 찾음 — 수동: cd '$wt'; codex <긴 프롬프트>" }
+}
+
+function Invoke-CoupangPlanShortcut {
+  param(
+    [string]$name,
+    [Parameter(ValueFromRemainingArguments = $true)][string[]]$ObjectiveParts
+  )
+  cp-plan $name @ObjectiveParts
+}
+Remove-Item Alias:cpp -Force -ErrorAction SilentlyContinue
+Set-Alias -Name cpp -Value Invoke-CoupangPlanShortcut -Force
+
+function cpf {
+  bmf
+}
+
+function cpd {
+  param([string]$phase)
+  bmd $phase
+}
+
+function cpr {
+  param([string]$phase)
+  bmr $phase
+}
+
+function cph {
+  param([string]$phase)
+  bmh $phase
+}
+
+function cps {
+  param([string]$Message)
+  bms $Message
 }
 
 function devr {
