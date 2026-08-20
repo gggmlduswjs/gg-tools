@@ -1031,7 +1031,7 @@ class StepExecutor:
             step_context = self._build_step_context(index)
             preamble = self._build_preamble(guardrails, step_context, prev_error)
 
-            tag = f"Step {step_num}/{self._total - 1} ({done} done): {step_name}"
+            tag = f"Step {step_num}/{self._total} ({done} done): {step_name}"
             if attempt > 1:
                 tag += f" [retry {attempt}/{self.MAX_RETRIES}]"
 
