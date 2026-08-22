@@ -58,7 +58,7 @@ def _mask_quoted(s):
         ch = s[i]
         if quote:
             if ch == "\\" and quote == '"' and i + 1 < len(s):
-                out.append("x"), out.append("x")
+                out.append("xx")        # 이스케이프 2글자 → 2글자 (길이 보존)
                 i += 2
                 continue
             if ch == quote:
