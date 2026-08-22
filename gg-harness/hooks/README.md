@@ -57,10 +57,21 @@ RULES = REPO_DENY + engine["deny_common"](migration_hint="…") \
 
 ⚠️★★★ **순서가 곧 판정이다**(위→아래 첫 매치). shim 은 **deny 를 전부 앞에** 이어붙인다 —
 안 그러면 `DB_ALLOW_WRITE=1 python manage.py migrate` 같은 게 ask 로 새 나간다.
-★`check(RULES, REPO_CASES)` 는 **공용 케이스 32종을 반드시 같이 돌린다** — 레포가 순서를
+★`check(RULES, REPO_CASES)` 는 **공용 케이스 57종을 반드시 같이 돌린다** — 레포가 순서를
 잘못 이어붙여 공용 보호가 죽으면 **그 레포의 selftest 에서** 빨개진다.
 
-self-test: `python ~/claude/gg-harness/hooks/guardrail.py --selftest` (공용 32 cases)
+self-test: `python ~/claude/gg-harness/hooks/guardrail.py --selftest` (공용 57 cases)
+
+⚠️★★★ **DDL 규칙만 문맥을 본다** (2026-08-22). 그 전엔 명령 문자열 **어디에든**
+DDL 단어가 있으면 막아서, DB 를 전혀 안 건드리는 작업을 하루에 네 번 막았다 —
+alembic 마이그레이션 **파일** 작성(가드가 자기가 권하는 행동을 막았다) · 훅 자신을
+`grep` · `gh pr --body` · 파일 작성 재시도. 지금은 `_ddl_gate` 가 **DB 에 아무것도 안
+보내는 게 확실한 문맥만 도려낸 뒤** 검사한다 — 검색(grep·rg·ack·findstr·Select-String) ·
+`git commit` · `gh pr|issue|…` · **파일로** 리다이렉트되는 heredoc 넷뿐이다.
+⛔"DB 클라이언트가 있을 때만 막는다"로 좁히지 마라 — 파이썬으로 커넥션에 DDL 을 던지는
+진짜 위험을 놓친다. `psql <<EOF`·`python <<EOF`·`cat <<EOF | psql` 은 계속 막힌다.
+도려내기는 **DDL 규칙에만** 걸린다 — 시크릿·`git add -A`·`rm -rf` 는 원본 명령 전체를 본다.
+★`decide()` 의 `pat` 은 정규식 문자열 **또는 판정 함수**(`cmd -> bool`)를 받는다.
 
 > **왜 갈랐나 (2026-08-13):** 쿠팡 95줄 / 북마트 199줄이 **`decide()`·`main()` 은 글자까지
 > 같은데 규칙만 갈려** 있었다. 그래서 **한쪽이 겪은 사고를 반대편이 그대로 안고 있었다.**
