@@ -31,12 +31,142 @@ import re
 import sys
 
 
+# ── DDL 문맥 판정 ────────────────────────────────────────────────────────
+# ⚠️★★★ 2026-08-22: DDL 규칙이 **문자열이 DB 로 가는지를 안 봤다.** 명령 어디에든
+#   DROP/ALTER/TRUNCATE 글자가 있으면 막아서, DB 를 전혀 안 건드리는 작업을 하루에
+#   네 번 막았다 — ①alembic 마이그레이션 **파일**을 heredoc 으로 쓰기(가드 메시지가
+#   *"스키마 변경은 Alembic 마이그레이션으로만"* 인데 그 Alembic 작성을 막았다) ·
+#   ②훅 자신을 `grep` 으로 조회 · ③`gh pr create --body` 본문 · ④파일 작성 재시도.
+#   ①이 제일 나쁘다 — 오탐이 **에이전트에게 규칙 위반(도구 우회)을 유발했다.**
+#
+# 고친 방향: **넓은 그물은 그대로 두고, DB 에 아무것도 안 보내는 게 확실한 문맥만
+#   도려낸다.** ⛔"DB 클라이언트가 있을 때만 막는다"로 좁히지 않았다 — 파이썬으로
+#   커넥션에 DDL 을 던지는 진짜 위험을 놓친다. 판정이 애매하면 **막는 쪽**이 기본이다.
+_SEARCH_TOOLS = {
+    "grep", "egrep", "fgrep", "rg", "ripgrep", "ack", "findstr", "select-string",
+}
+_ENV_PREFIX = r"(?:[A-Za-z_]\w*=\S*\s+)*"      # `FOO=1 grep …` 의 앞머리
+_SEP = re.compile(r"(?:\|\||&&|[;|&\n])")
+_HEREDOC_OPEN = re.compile(r"<<-?\s*(['\"]?)([A-Za-z_][A-Za-z0-9_]*)\1")
+
+
+def _mask_quoted(s):
+    """따옴표 **안**을 x 로 덮은 사본(길이 보존). 구분자·명령어 탐색 전용 —
+    실제 판정은 언제나 원본 문자열로 한다."""
+    out, quote, i = [], None, 0
+    while i < len(s):
+        ch = s[i]
+        if quote:
+            if ch == "\\" and quote == '"' and i + 1 < len(s):
+                out.append("x"), out.append("x")
+                i += 2
+                continue
+            if ch == quote:
+                quote = None
+                out.append(ch)
+            else:
+                out.append(ch if ch == "\n" else "x")   # 줄바꿈은 경계라 살린다
+        elif ch in "'\"":
+            quote = ch
+            out.append(ch)
+        else:
+            out.append(ch)
+        i += 1
+    return "".join(out)
+
+
+def _head_tool(masked_seg):
+    """세그먼트의 **명령어 자리** 토큰 → 소문자 basename. 없으면 None."""
+    m = re.match(r"\s*" + _ENV_PREFIX + r"([\w./\\:-]+)", masked_seg)
+    if not m:
+        return None, ""
+    tool = re.split(r"[/\\]", m.group(1))[-1].lower()
+    if tool.endswith(".exe"):
+        tool = tool[:-4]
+    return tool, masked_seg[m.end():]
+
+
+def _heredoc_is_file_bound(head_line):
+    """heredoc 을 여는 줄(`cat > x.py <<'PY'`)만 보고 **본문이 파일로 가는지** 판정.
+
+    ⚠️★★★ 여기가 제일 조심할 자리다 — `psql <<EOF`·`python <<EOF`·`… | psql` 처럼
+    **프로세스로 먹이는 heredoc 은 계속 막아야 한다.** 못 가르면 False(=막는 쪽).
+    """
+    masked = _mask_quoted(head_line)
+    tail = re.split(r"&&|\|\||;", masked)[-1]      # 같은 줄에서 마지막 명령이 진짜
+    if "|" in tail or ">(" in tail:                 # 파이프·프로세스치환 → 프로세스로 간다
+        return False
+    tool, _ = _head_tool(tail)
+    if tool == "tee":                               # tee <파일>
+        return bool(re.search(r"\btee\b(?:\s+-\S+)*\s+[^|&;<>()\s]", tail))
+    if tool == "cat":                               # cat > <파일> / cat <<EOF > <파일>
+        return bool(re.search(r">>?\s*[^|&;<>()\s]", tail))
+    return False
+
+
+def _strip_file_heredocs(cmd):
+    """파일로 리다이렉트되는 heredoc 의 **본문만** 지운다(여는 줄·종료어는 남긴다).
+
+    ⚠️ 여기선 **원본**을 본다 — 종료어가 `<<'PY'` 처럼 따옴표에 싸여 있어서, 마스킹한
+       사본으로 찾으면 종료어 이름이 x 로 덮여 본문 끝을 영영 못 찾는다.
+    """
+    out = cmd
+    for m in reversed(list(_HEREDOC_OPEN.finditer(cmd))):  # 뒤에서부터 = 인덱스 안 밀림
+        line_start = cmd.rfind("\n", 0, m.start()) + 1
+        line_end = cmd.find("\n", m.end())
+        if line_end == -1:
+            continue                                # 본문이 없다
+        end = re.compile(r"^[ \t]*" + re.escape(m.group(2)) + r"[ \t]*$", re.MULTILINE)
+        bm = end.search(cmd, line_end + 1)
+        if not bm:
+            continue                                # 종료어를 못 찾음 → 그대로 둔다
+        if _heredoc_is_file_bound(cmd[line_start:line_end]):
+            out = out[:line_end + 1] + out[bm.start():]
+    return out
+
+
+def _segment_is_safe(seg):
+    """이 세그먼트가 **DB 에 아무것도 안 보내는 게 확실한가.**
+
+    검색(grep·rg·ack·findstr·Select-String) · `git commit` · `gh pr|issue|…` 셋뿐이다.
+    ⚠️ 이 판정은 **DDL 규칙에만** 쓰인다 — 시크릿·`git add -A`·`rm -rf` 규칙은 여전히
+       원본 명령 전체를 본다(`gh pr create --body "sk-…"` 는 그대로 ask 로 잡힌다).
+    """
+    masked = _mask_quoted(seg)
+    tool, rest = _head_tool(masked)
+    if tool in _SEARCH_TOOLS:
+        return True
+    if tool == "git" and re.match(r"\s+(?:\S+\s+)*?commit\b", rest):
+        return True
+    if tool == "gh" and re.match(r"\s+(pr|issue|release|gist|api)\b", rest):
+        return True
+    return False
+
+
+def strip_safe_context(cmd):
+    """명령에서 **DB 에 안 가는 게 확실한 부분**을 도려낸 사본. DDL 규칙 전용."""
+    cmd = _strip_file_heredocs(cmd)
+    masked = _mask_quoted(cmd)
+    kept, start = [], 0
+    for m in _SEP.finditer(masked):
+        kept.append(cmd[start:m.start()])
+        start = m.end()
+    kept.append(cmd[start:])
+    return "\n".join("" if _segment_is_safe(s) else s for s in kept)
+
+
+def _ddl_gate(pattern):
+    """DDL 정규식을 '안전한 문맥을 도려낸 뒤 검사하는' 판정자로 감싼다."""
+    rx = re.compile(pattern, re.IGNORECASE)
+    return lambda cmd: bool(rx.search(strip_safe_context(cmd)))
+
+
 def deny_common(migration_hint="마이그레이션 경로로만"):
     """어느 레포에서나 금지. `migration_hint` 만 레포 사정으로 갈린다."""
     return [
-        (r"\b(DROP|TRUNCATE)\s+(TABLE|DATABASE|SCHEMA)\b", "deny",
+        (_ddl_gate(r"\b(DROP|TRUNCATE)\s+(TABLE|DATABASE|SCHEMA)\b"), "deny",
          f"운영 DB DDL 금지. 스키마 변경은 {migration_hint}."),
-        (r"\bALTER\s+(TABLE|DATABASE|SCHEMA)\b", "deny",
+        (_ddl_gate(r"\bALTER\s+(TABLE|DATABASE|SCHEMA)\b"), "deny",
          f"운영 DB DDL 금지. 스키마 변경은 {migration_hint}."),
         # 파국적 rm 만. 일반 `rm -rf <subdir>` 는 통과시킨다 — allowlist 를 존중해야
         # 사람이 가드를 안 끈다.
@@ -105,6 +235,41 @@ COMMON_CASES = [
     ("AKIA" + "C" * 16 + " aws s3 ls", "ask"),
     ("POPBILL_SECRET_KEY=" + "D" * 20 + " python x.py", "ask"),
     ("git rm --pathspec-from-file=list.txt", "ask"),
+    # ── DDL: 여전히 막혀야 하는 것 (음성 대조 — 없으면 '아무것도 안 막는 가드') ──
+    ("psql $DATABASE_URL -c \"TRUNCATE TABLE orders\"", "deny"),
+    ("psql -h db -U u prod <<'SQL'\nALTER TABLE orders ADD COLUMN x int;\nSQL", "deny"),
+    ("cat <<'SQL' | psql prod\nDROP TABLE products\nSQL", "deny"),          # 파이프 = 프로세스
+    ("tee >(psql prod) <<'SQL'\nDROP TABLE products\nSQL", "deny"),         # 프로세스 치환
+    ("python <<'PY'\ncur.execute(\"ALTER TABLE listings ADD COLUMN x text\")\nPY", "deny"),
+    ('python -c "conn.execute(\'DROP TABLE products\')"', "deny"),
+    ("python manage.py dbshell -c 'TRUNCATE TABLE orders'", "deny"),
+    # 도려낸 문맥을 흉내 내 통과시키려는 형태 — 세그먼트를 갈라 뒤쪽을 살려야 잡힌다
+    ("grep -q x f.txt && psql -c 'DROP TABLE products'", "deny"),
+    ("rg foo src/; psql -c \"TRUNCATE TABLE orders\"", "deny"),
+    ('gh pr create --body "설명" && psql -c \'DROP TABLE products\'', "deny"),
+    ('git commit -m "설명"; psql -c \'DROP TABLE products\'', "deny"),
+    ('echo "grep" ; psql -c \'DROP TABLE products\'', "deny"),
+    ('./grepdb -c "DROP TABLE products"', "deny"),                          # 이름만 grep 유사
+    ("cat > /tmp/x.sql <<'SQL' && psql -f /tmp/x.sql\nDROP TABLE products\nSQL", "deny"),
+    # ── DDL 오탐 4건 (2026-08-22 실측 · 전부 DB 에 아무것도 안 보낸다) ─────
+    # ① alembic 마이그레이션 **파일** 작성 — 가드가 자기가 권하는 행동을 막고 있었다
+    ("cat > alembic/versions/ab12_add_col.py <<'PY'\n"
+     "def upgrade():\n"
+     "    op.execute(\"ALTER TABLE listings ADD COLUMN x text\")\n"
+     "PY", None),
+    ("tee alembic/versions/cd34_drop.py <<'PY'\n"
+     "    op.execute(\"DROP TABLE tmp_stage\")\nPY", None),
+    ("cat >> /tmp/x.sql <<'SQL'\nDROP TABLE IF EXISTS tmp_stage;\nSQL", None),  # ④ 재시도
+    # ② 훅·코드 조회
+    ('grep -rn "ALTER TABLE" .claude/hooks/guardrail.py', None),
+    ('rg "TRUNCATE TABLE" src/', None),
+    ('findstr /S "ALTER TABLE" *.py', None),
+    ('Select-String -Path .claude/hooks/*.py -Pattern "DROP TABLE"', None),
+    # ③ PR·이슈 본문
+    ('gh pr create --title "가드 수정" --body "DROP TABLE 오탐을 고쳤다"', None),
+    ('gh issue create --body "ALTER TABLE 규칙이 파일 작성을 막는다"', None),
+    ("gh api repos/o/r/issues -f body='TRUNCATE TABLE 설명'", None),
+    ('git commit -m "DDL 가드: DROP TABLE 문자열 오탐 수정"', None),
     # ── 오탐 방지 (여기가 깨지면 사람이 가드를 통째로 끈다) ────────────
     ("rm -rf build/", None),
     ("rm build/out.js", None),
@@ -121,9 +286,14 @@ COMMON_CASES = [
 
 
 def decide(cmd, rules):
-    """명령 문자열 → (decision, reason) 또는 (None, None). 위→아래 첫 매치."""
+    """명령 문자열 → (decision, reason) 또는 (None, None). 위→아래 첫 매치.
+
+    `pat` 은 정규식 문자열 또는 **판정 함수**(`cmd -> bool`)다. 함수 형태는 문맥을
+    보는 규칙(`_ddl_gate`)이 쓴다 — shim 은 지금까지처럼 튜플만 넘기면 된다.
+    """
     for pat, decision, reason in rules:
-        if re.search(pat, cmd, re.IGNORECASE):
+        hit = pat(cmd) if callable(pat) else re.search(pat, cmd, re.IGNORECASE)
+        if hit:
             return decision, reason
     return None, None
 
