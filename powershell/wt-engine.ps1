@@ -348,6 +348,12 @@ function Invoke-List {
   if (-not $script:SessionsDir) { Write-Host "(이 프로젝트엔 세션 하트비트 훅이 없어 '상태'는 판정 불가 — 전부 '죽은듯')" -ForegroundColor DarkGray }
   Write-Host "커밋 = ancestry 상 origin/$($script:MainBr) 에 없는 커밋 수 — squash 머지면 부풀려 보인다(믿지 말 것)" -ForegroundColor DarkGray
   Write-Host "반영 = 브랜치가 더한 내용이 main 에 실제로 있나. '이미 반영'이면 지워도 잃을 게 없다" -ForegroundColor DarkGray
+  # ⚠ '진짜 미반영' 을 '할 일이 남았다' 로 읽으면 이미 머지된 것을 되살린다 — 2026-08-27 실사고.
+  #   Get-BranchLanded 는 커밋 **제목**만 대조하므로 내용 중복은 원리상 못 본다.
+  #   ⛔ 여기서 내용 대조로 승격하지 마라 — 브랜치마다 전체 diff 를 떠야 해서 list 가 매번 느려진다.
+  Write-Host "  ⚠ '반영' 은 커밋 제목 대조다 — 같은 일을 다른 제목·다른 파일명으로 머지했으면 '진짜 미반영' 으로 찍힌다(할 일이 남았다는 뜻이 아니다)" -ForegroundColor DarkYellow
+  Write-Host "  ★ 마이그레이션·보안처럼 되돌리기 비싼 건 반드시 내용으로 확인 — 존재는 'git cat-file -e origin/$($script:MainBr):<경로>', 내용은 'git diff' 로 둘 다" -ForegroundColor DarkYellow
+  Write-Host "    실례(2026-08-27 Coupang): 'rls-enable-three' 를 '진짜 미반영' 으로 찍었으나 main 의 e7a3c9d15b62 가 표 셋을 이미 덮고 있었다 — 믿고 머지했으면 alembic head 분기로 main 이 깨졌다" -ForegroundColor DarkYellow
   if (-not $fresh) {
     if ($script:OriginMainUpdateSkipped) {
       Write-Host "Codex sandbox 안에서는 .git 쓰기(fetch)를 건너뛰었다. 삭제 적용은 승인/사용자 권한에서만." -ForegroundColor DarkYellow
