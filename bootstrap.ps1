@@ -1,0 +1,102 @@
+# bootstrap.ps1 — gg-tools 한 번 실행으로 공용 Claude Code 환경을 설치/업데이트한다.
+#
+# 설치/업데이트 대상:
+#   1) Superpowers (Anthropic 공식 marketplace)
+#   2) gg-skills (이 repo의 gg-tools marketplace)
+#   3) RobMitt/grill-me-skill (원본 SKILL.md)
+#   4) 기존 install.ps1 PC 배선
+#
+# 멱등 실행을 목표로 한다. 이미 있으면 update, 없으면 install 한다.
+param(
+  [switch]$Force,
+  [switch]$InstallForge,
+  [switch]$SkipPcWiring
+)
+
+$ErrorActionPreference = 'Stop'
+$repo = $PSScriptRoot
+$dotClaude = Join-Path $env:USERPROFILE '.claude'
+
+function Invoke-ClaudePlugin {
+  param(
+    [Parameter(Mandatory=$true)][string[]]$Args,
+    [switch]$AllowFailure
+  )
+
+  & claude @Args
+  $code = $LASTEXITCODE
+  if ($code -ne 0 -and -not $AllowFailure) {
+    throw "claude $($Args -join ' ') 실패 (exit $code)"
+  }
+  return ($code -eq 0)
+}
+
+function Ensure-Plugin {
+  param([Parameter(Mandatory=$true)][string]$PluginId)
+
+  Write-Host "  $PluginId" -Fore DarkCyan
+  $updated = Invoke-ClaudePlugin -Args @('plugin','update',$PluginId,'--scope','user') -AllowFailure
+  if ($updated) {
+    Write-Host "    [ok] 최신화" -Fore Green
+    return
+  }
+
+  Invoke-ClaudePlugin -Args @('plugin','install',$PluginId,'--scope','user') | Out-Null
+  Write-Host "    [ok] 설치" -Fore Green
+}
+
+if (-not (Get-Command claude -ErrorAction SilentlyContinue)) {
+  throw "Claude Code 명령 'claude'를 찾을 수 없다. Claude Code를 먼저 설치한 뒤 다시 실행해라."
+}
+
+Write-Host "`n== Claude Code plugins ==" -Fore Cyan
+
+# 1) Superpowers — 공식 Claude marketplace 정본.
+Ensure-Plugin 'superpowers@claude-plugins-official'
+
+# 2) gg-tools marketplace → gg-skills.
+#    repo가 claude→gg-tools로 rename 되는 과도기라 새 이름을 먼저 시도하고 옛 URL은 fallback으로 둔다.
+$marketReady = Invoke-ClaudePlugin -Args @('plugin','marketplace','update','gg-tools') -AllowFailure
+if (-not $marketReady) {
+  # 옛 marketplace를 제거하면 그 marketplace에서 설치했던 legacy gg-harness도 같이 정리된다.
+  Invoke-ClaudePlugin -Args @('plugin','marketplace','remove','gg-harness') -AllowFailure | Out-Null
+
+  $marketReady = Invoke-ClaudePlugin -Args @('plugin','marketplace','add','gggmlduswjs/gg-tools','--scope','user') -AllowFailure
+  if (-not $marketReady) {
+    $marketReady = Invoke-ClaudePlugin -Args @('plugin','marketplace','add','gggmlduswjs/claude','--scope','user') -AllowFailure
+  }
+  if (-not $marketReady) {
+    throw 'gg-tools marketplace 추가 실패. GitHub 인증/네트워크와 repo 이름을 확인해라.'
+  }
+}
+Ensure-Plugin 'gg-skills@gg-tools'
+
+# 3) grill-me — RobMitt 원본은 marketplace plugin이 아니라 단일 Claude skill이다.
+Write-Host "`n== grill-me ==" -Fore Cyan
+$grillDir = Join-Path $dotClaude 'skills\grill-me'
+$grillFile = Join-Path $grillDir 'SKILL.md'
+New-Item -ItemType Directory -Force $grillDir | Out-Null
+$grillUrl = 'https://raw.githubusercontent.com/RobMitt/grill-me-skill/main/SKILL.md'
+try {
+  Invoke-WebRequest -Uri $grillUrl -OutFile $grillFile -UseBasicParsing
+  Write-Host "  [ok] RobMitt/grill-me-skill 최신 원본 → $grillFile" -Fore Green
+} catch {
+  throw "grill-me 동기화 실패: $($_.Exception.Message)"
+}
+
+# 4) 기존 PC 배선도 같은 한 번의 명령으로 처리한다.
+if (-not $SkipPcWiring) {
+  Write-Host "`n== PC wiring ==" -Fore Cyan
+  $install = Join-Path $repo 'install.ps1'
+  if (-not (Test-Path $install)) { throw "install.ps1 없음: $install" }
+
+  $wireArgs = @()
+  if ($Force) { $wireArgs += '-Force' }
+  if ($InstallForge) { $wireArgs += '-InstallForge' }
+  & pwsh -NoProfile -File $install @wireArgs
+  if ($LASTEXITCODE -ne 0) { throw "install.ps1 실패 (exit $LASTEXITCODE)" }
+}
+
+Write-Host "`n== 완료 ==" -Fore Cyan
+Write-Host 'Superpowers + gg-skills + grill-me + PC 배선이 최신 상태다.' -Fore Green
+Write-Host '열려 있는 Claude Code 세션은 /reload-plugins 또는 새 세션에서 최신 plugin을 사용한다.' -Fore DarkGray

@@ -1,84 +1,87 @@
-# Claude 공용 도구
+# gg-tools
 
-이 저장소는 여러 프로젝트에서 공통으로 쓰는 **보완 도구**를 관리한다.
+여러 프로젝트에서 공통으로 쓰는 Claude Code 개발 보완 도구와 PC 배선을 관리한다.
 
-## 개발 workflow의 정본
+## 역할
 
-범용 소프트웨어 개발 절차는 더 이상 이 저장소에서 자체 구현하지 않는다.
+범용 개발 workflow의 정본은 **Superpowers**다.
 
-- 기획/요구사항 정리: **Superpowers `brainstorming`**
-- 구현 계획: **Superpowers `writing-plans`**
-- 격리 작업공간: **Superpowers `using-git-worktrees`** + 각 프로젝트의 로컬 worktree 규칙
-- 구현 실행: **Superpowers `subagent-driven-development` 또는 `executing-plans`**
-- TDD: **Superpowers `test-driven-development`**
-- 디버깅: **Superpowers `systematic-debugging`**
-- 리뷰: **Superpowers code-review workflow**
-- 완료 검증: **Superpowers `verification-before-completion`**
-
-Claude Code와 Codex 양쪽에 Superpowers를 설치해 같은 spec/plan을 공유한다. 권장 역할은 **Claude = 기획·설계**, **Codex = 구현·반복 검증**이다. 프로젝트 지시(`CLAUDE.md`, `AGENTS.md`)가 Superpowers보다 우선한다.
-
-## 이 저장소가 맡는 것
-
-`gg-harness` plugin은 이름은 당분간 호환성을 위해 유지하지만, 역할은 **전문 보완 도구**로 축소한다.
-
-유지 대상 예:
-- domain-modeling
-- Supabase read-only advisor
-- Lighthouse/performance
-- OWASP/security
-- AI-readiness/cartography
-- wiki-ingest / wiki-lint / wiki-query
-
-기존 `/harness`, 자체 phase/step 실행기, 자체 TDD/review workflow는 **deprecated**다. 새 작업에는 사용하지 않는다. 기존 프로젝트가 아직 참조할 수 있으므로 1차 마이그레이션에서는 파일을 즉시 삭제하지 않는다.
-
-## 구조
+- brainstorming / planning / worktree / TDD / execution / debugging / verification → Superpowers
+- 기존 시스템 현대화, domain-modeling, code-review-7p, 보안·성능·AI-readiness·위키 → **gg-skills**
+- 집요한 요구사항 인터뷰 → **RobMitt/grill-me-skill**
+- 프로젝트 고유 DB/배포/worktree/UI 규칙 → 각 프로젝트의 `CLAUDE.md`, `AGENTS.md`, `.claude/rules/`
 
 ```text
-claude/
-├── .claude-plugin/marketplace.json
-├── README.md
-└── gg-harness/                  # 호환 이름; 전문 보완 plugin
-    ├── .claude-plugin/plugin.json
-    ├── commands/                # wiki 등 보완 command
-    └── skills/                  # 전문 skill
+Claude Code
+├─ Superpowers        # 개발 workflow
+├─ gg-skills          # 공용 전문 스킬
+├─ grill-me           # 요구사항 인터뷰
+└─ project rules      # Bookmart/Coupang 고유 규칙
 ```
 
-## 역할 분리
+## 한 번에 설치/업데이트
+
+Claude Code가 설치된 PC에서는 이 repo를 clone/pull한 뒤 아래 한 줄만 실행한다.
+
+```powershell
+pwsh ./bootstrap.ps1
+```
+
+`bootstrap.ps1`은 멱등으로 다음을 처리한다.
+
+1. `superpowers@claude-plugins-official` 설치 또는 업데이트
+2. `gg-tools` marketplace 등록/갱신 후 `gg-skills@gg-tools` 설치 또는 업데이트
+3. `RobMitt/grill-me-skill`의 최신 `SKILL.md`를 `~/.claude/skills/grill-me/`에 동기화
+4. 기존 `install.ps1`을 실행해 PowerShell/profile/Claude 개인 설정 등 PC 배선
+
+옵션:
+
+```powershell
+pwsh ./bootstrap.ps1 -Force          # PC별 복사 설정도 덮어쓰기
+pwsh ./bootstrap.ps1 -InstallForge   # 보류 중인 forge 스킬 배선 포함
+pwsh ./bootstrap.ps1 -SkipPcWiring   # plugin/skill만 갱신
+```
+
+열려 있는 Claude Code 세션은 실행 후 `/reload-plugins`를 하거나 새 세션을 연다.
+
+## 새 PC
+
+현재 repo 이름이 `claude`인 동안:
+
+```powershell
+gh repo clone gggmlduswjs/claude ~/gg-tools
+pwsh ~/gg-tools/bootstrap.ps1
+```
+
+repo를 `gg-tools`로 rename한 뒤에는:
+
+```powershell
+gh repo clone gggmlduswjs/gg-tools ~/gg-tools
+pwsh ~/gg-tools/bootstrap.ps1
+```
+
+bootstrap은 rename 과도기를 위해 `gggmlduswjs/gg-tools`를 먼저 시도하고, 없으면 `gggmlduswjs/claude`를 fallback으로 사용한다.
+
+## Plugin 구조
 
 ```text
-~/.claude/                 개인 기본 설정
-Superpowers plugin         범용 개발 workflow
-이 repo의 gg-harness       전문 보완 도구
-각 프로젝트 CLAUDE.md      프로젝트 헌법/안전 규칙
-각 프로젝트 .claude/       프로젝트 전용 rule/skill/hook
-각 프로젝트 src/           실제 제품 코드
-worktree                   임시 격리 작업 자리
+gg-tools/
+├─ .claude-plugin/marketplace.json   # marketplace name: gg-tools
+├─ bootstrap.ps1                     # 한 번에 설치/업데이트
+├─ install.ps1                       # PC 배선
+├─ gg-skills/                        # 현재 공용 전문 plugin
+│  ├─ .claude-plugin/plugin.json
+│  ├─ commands/
+│  └─ skills/
+└─ gg-harness/                       # deprecated 호환본; 신규 설치 금지
 ```
 
-원칙은 하나다: **범용 개발 방법론은 Superpowers, 프로젝트 고유 지식은 프로젝트, 전문 도구만 이 plugin.**
+`gg-skills`는 명시적 version을 고정하지 않는다. Git-hosted marketplace의 commit SHA를 버전으로 사용하므로 새 변경이 merge되면 `bootstrap.ps1`의 `claude plugin update`가 최신 커밋을 받는다.
 
-## 설치/업데이트
+## Codex
 
-기존 gg-harness 설치는 호환성을 위해 유지한다.
+Claude Code의 bootstrap이 Codex plugin까지 대신 설치하지는 않는다. Superpowers는 각 harness별 설치가 필요하므로 Codex에서는 Codex plugin marketplace를 통해 별도로 설치한다. 다만 Claude가 만든 `.dev/research` / `.dev/plans` 정본은 같은 Git repo를 통해 Codex와 공유한다.
 
-```text
-/plugin marketplace add gggmlduswjs/claude
-/plugin install gg-harness@gg-harness
-```
+## Legacy
 
-변경 후:
-
-```text
-/plugin marketplace update gg-harness
-/plugin update gg-harness@gg-harness
-```
-
-Superpowers는 Claude Code와 Codex 각각의 plugin 설치 흐름으로 별도 설치한다. 한 harness에 설치했다고 다른 harness에 자동 적용되는 것으로 가정하지 않는다.
-
-## 마이그레이션 원칙
-
-1. 새 작업은 자체 `/harness`로 phase/step을 만들지 않는다.
-2. Superpowers spec/plan을 Claude가 만들고 Git에 저장한다.
-3. Codex가 같은 plan을 읽어 구현한다.
-4. 프로젝트별 DB/배포/worktree 안전 규칙은 각 repo의 `CLAUDE.md`/`AGENTS.md`에 남긴다.
-5. 기존 harness 파일은 참조가 제거된 뒤 별도 cleanup PR에서 삭제한다.
+기존 `gg-harness`, `/harness`, 자체 phase/step 실행기, 자체 TDD workflow는 deprecated다. 프로젝트 참조가 모두 제거된 뒤 별도 cleanup으로 삭제한다.

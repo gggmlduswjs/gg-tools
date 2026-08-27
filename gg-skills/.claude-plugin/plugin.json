@@ -1,8 +1,8 @@
 {
   "name": "gg-skills",
-  "version": "2.0.0",
   "description": "공용 전문 스킬 plugin. 범용 개발 workflow는 Superpowers를 정본으로 사용하고, 기존 시스템 현대화·도메인 모델링·진단·보안·성능·위키 등 보완 스킬만 제공한다.",
   "author": {"name":"gggmlduswjs","url":"https://github.com/gggmlduswjs"},
   "homepage": "https://github.com/gggmlduswjs/claude",
-  "repository": "https://github.com/gggmlduswjs/claude"
+  "repository": "https://github.com/gggmlduswjs/claude",
+  "keywords": ["specialist-skills","modernization","security","performance","ai-readiness","claude-code-plugin"]
 }

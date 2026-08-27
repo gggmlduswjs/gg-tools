@@ -1,24 +1,33 @@
 {
   "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
   "name": "gg-tools",
-  "description": "공용 Claude Code 전문 스킬 marketplace. 범용 개발 workflow는 Superpowers를 사용한다.",
-  "owner": {"name":"gggmlduswjs","url":"https://github.com/gggmlduswjs"},
+  "description": "공용 Claude Code 전문 도구 marketplace. 범용 개발 workflow는 Superpowers, 전문 보완 스킬은 gg-skills가 담당한다.",
+  "owner": {
+    "name": "gggmlduswjs",
+    "url": "https://github.com/gggmlduswjs"
+  },
   "plugins": [
     {
       "name": "gg-skills",
       "source": "./gg-skills",
-      "version": "2.0.0",
-      "description": "기존 시스템 현대화·도메인 모델링·리뷰·보안·성능·AI-readiness·위키 등 공용 전문 스킬 묶음.",
+      "description": "기존 시스템 현대화·도메인 모델링·코드 리뷰·보안·성능·AI readiness·위키 등 공용 전문 스킬 묶음.",
       "category": "productivity",
-      "keywords": ["skills","modernization","security","performance","ai-readiness"]
+      "keywords": [
+        "skills",
+        "modernization",
+        "domain-modeling",
+        "security",
+        "performance",
+        "ai-readiness"
+      ]
     },
     {
       "name": "gg-harness",
       "source": "./gg-harness",
       "version": "1.9.0",
-      "description": "DEPRECATED compatibility name. 새 설치는 gg-skills를 사용한다.",
+      "description": "Deprecated compatibility plugin. 새 설치는 gg-skills를 사용한다.",
       "category": "productivity",
-      "keywords": ["deprecated","compatibility"]
+      "keywords": ["deprecated", "compatibility"]
     }
   ]
 }

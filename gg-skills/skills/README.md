@@ -4,13 +4,16 @@
 
 이 plugin은 더 이상 디자인, 강의 변환, 회의록, 하네스 실행기, 로컬 PC 배선을 싣지 않는다. 프로젝트별 secret, MCP 인증, 운영 DB project ref는 plugin에 넣지 않고 각 repo/local 설정에 둔다.
 
-## 계획
+## 계획 / 기존 시스템 현대화
 
 | 스킬 | 뭘 하나 |
 |---|---|
 | **grilling** | 계획을 한 번에 한 질문씩 압박해서 빈 구멍을 찾는다 |
 | **domain-modeling** | 도메인 용어, 경계, ADR 후보를 정리한다 |
 | **product-spec-kit** | PRD·기능명세서·유저플로우·와이어프레임 세트를 만든다 |
+| **existing-system-modernization** | 이미 운영 중인 제품에서 Product Decision → Use Case → Current System Map → Legacy 분류 → Backend Impact → Architecture Escalation → Detox를 보존하고 Superpowers plan으로 넘긴다 |
+
+`existing-system-modernization`은 Superpowers를 대체하지 않는다. Superpowers는 brainstorming/planning/TDD/debugging/execution/verification을 담당하고, 이 스킬은 **기존 시스템에서 빠뜨리면 안 되는 조사·보존 항목**만 공통으로 정의한다. 프로젝트별 ERP/WING/DB/디자인 규칙은 각 repo의 얇은 adapter에 둔다.
 
 ## 진단
 
