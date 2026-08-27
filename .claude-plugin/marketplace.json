@@ -1,25 +1,24 @@
 {
   "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
-  "name": "gg-harness",
-  "description": "북마트·쿠팡 운영용 Claude Code plugin marketplace. 루트는 마켓플레이스, 플러그인 본체는 gg-harness/.",
-  "owner": {
-    "name": "gggmlduswjs",
-    "url": "https://github.com/gggmlduswjs"
-  },
+  "name": "gg-tools",
+  "description": "공용 Claude Code 전문 스킬 marketplace. 범용 개발 workflow는 Superpowers를 사용한다.",
+  "owner": {"name":"gggmlduswjs","url":"https://github.com/gggmlduswjs"},
   "plugins": [
+    {
+      "name": "gg-skills",
+      "source": "./gg-skills",
+      "version": "2.0.0",
+      "description": "기존 시스템 현대화·도메인 모델링·리뷰·보안·성능·AI-readiness·위키 등 공용 전문 스킬 묶음.",
+      "category": "productivity",
+      "keywords": ["skills","modernization","security","performance","ai-readiness"]
+    },
     {
       "name": "gg-harness",
       "source": "./gg-harness",
-      "version": "1.7.0",
-      "description": "skills 17개 + slash /harness·/review·wiki-*. 실행기·전역 CLAUDE.md·프로젝트 secret/MCP는 포함하지 않는다.",
+      "version": "1.9.0",
+      "description": "DEPRECATED compatibility name. 새 설치는 gg-skills를 사용한다.",
       "category": "productivity",
-      "keywords": [
-        "harness",
-        "wiki",
-        "second-brain",
-        "ai-readiness",
-        "code-audit"
-      ]
+      "keywords": ["deprecated","compatibility"]
     }
   ]
 }
