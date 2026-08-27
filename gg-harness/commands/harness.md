@@ -1,29 +1,20 @@
 ---
-description: 작업을 self-contained step으로 설계하고 승인 후 순차 실행
+description: DEPRECATED — 새 개발 작업은 Superpowers workflow를 사용한다.
 ---
 
-`$ARGUMENTS` 작업을 이 레포 하네스 phase로 준비한다.
+# /harness — deprecated
 
-1. `CLAUDE.md`, `AGENTS.md`, 관련 `.dev/research/`·`.dev/plans/`와 기존 코드를 먼저 읽는다.
-2. 목표, 수정 파일, 재사용 경로, 금지사항, 실행 가능한 Acceptance Criteria를 사용자와 합의한다.
-3. 승인 전에는 코드와 phase 파일을 만들지 않는다.
-4. 승인 후 `.dev/harness/phases/<task>/index.json`과 `step<N>.md`를 만든다.
-5. step 하나는 한 흐름만 담당하고 독립 세션에서도 이해되게 작성한다.
-6. 실행은 격리된 깨끗한 작업 브랜치에서만 아래 명령으로 한다.
-   워크트리 위치 정본: bookmart=`pwsh _scripts/bmwt.ps1 start <이름>` → `../bookmart-wt/<이름>`,
-   Coupang=`.\wt.ps1 new <이름>` → `../Coupang_v2-wt/<이름>`.
-   ⛔ `git worktree add` 직접 호출·`.claude/worktrees/`에 작업 워크트리 생성 금지.
-   이미 `*-wt` 안이면 `--no-branch`.
+이 command는 기존 프로젝트 호환을 위해 임시로 남아 있다. **새 작업에는 사용하지 않는다.**
 
-```powershell
-python .dev/harness/execute.py <task> --no-branch --dry-run
-python .dev/harness/execute.py <task> --no-branch
-```
+범용 개발 workflow의 정본은 Superpowers다.
 
-7. ⛔ **`Phase completed` 로 세션을 끝내지 않는다.** phase 는 상위 계획의 한 조각일 뿐이다.
-   마지막 step 이 끝나면 phase `index.json` 의 `source_plan` 을 열어 **① 이 phase 로 닫힌 항목을
-   진행판에 체크하고 ② 남은 항목 수를 보고하고 ③ 다음 phase 후보를 사용자에게 제시**한다.
-   완료 기준은 「step 을 다 돌았다」가 아니라 **「상위 계획에 남은 건수 0」**이다.
-   `source_plan` 이 비어 있으면 그것부터 채운다 — 상위를 모르는 phase 는 끝나는 순간 맥락이 증발한다.
+- 아이디어/요구사항 → `brainstorming`
+- 구현 계획 → `writing-plans`
+- 실행 → `subagent-driven-development` 또는 `executing-plans`
+- TDD → `test-driven-development`
+- 디버깅 → `systematic-debugging`
+- 완료 검증 → `verification-before-completion`
 
-`execute.py`는 각 레포 `.dev/harness/`에 둔다. commit, push, worktree 생성, 운영 DB 쓰기를 하지 않는다.
+기존 `.dev/harness/phases/*`, `step*.md`, `execute.py` 기반 작업이 아직 진행 중인 경우에만 해당 프로젝트의 기존 문서를 따른다. 새 plan을 phase/step으로 다시 번역하지 않는다.
+
+프로젝트의 `CLAUDE.md`/`AGENTS.md`에 DB·배포·worktree 같은 더 구체적인 안전 규칙이 있으면 그 규칙이 우선한다.
