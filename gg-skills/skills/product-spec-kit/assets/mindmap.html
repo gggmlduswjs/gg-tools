@@ -1,0 +1,139 @@
+<!-- 기능 분해 마인드맵 — 기능명세서 탭 맨 위에 붙인다. TREE 하나만 갈아끼운다.
+     PRD(뿌리) → 요구사항 → 기능 → 세부 순서로 왼쪽에서 오른쪽으로 뻗는다.
+     좌표는 DOM 오프셋이 아니라 데이터로 계산한다(비활성 탭 display:none 에서 offset=0). -->
+
+      <div class="mm-bar">
+        <button type="button" id="mOut" aria-label="축소">−</button>
+        <span id="mVal">100%</span>
+        <button type="button" id="mIn" aria-label="확대">+</button>
+        <button type="button" id="mFit">폭 맞춤</button>
+      </div>
+      <div class="mm-wrap" id="mmWrap">
+        <div class="mm" id="mm" aria-label="기능 분해 마인드맵"></div>
+      </div>
+
+      <style>
+        .mm-bar{ display:flex; align-items:center; gap:6px; margin-top:16px; }
+        .mm-bar button{ all:unset; cursor:pointer; border:1px solid var(--line-strong); border-radius:5px;
+          padding:3px 9px; font-size:11px; color:var(--ink-muted); background:var(--paper-raised); }
+        .mm-bar button:hover{ color:var(--ink); border-color:var(--accent); }
+        .mm-bar button:focus-visible{ outline:2px solid var(--accent); outline-offset:1px; }
+        .mm-bar #mVal{ font-family:var(--mono); font-size:11px; color:var(--ink-faint);
+          min-width:42px; text-align:center; font-variant-numeric:tabular-nums; }
+        .mm-wrap{ border:1px solid var(--line); border-radius:10px; background:var(--paper-raised);
+          overflow-x:auto; overflow-y:hidden; margin-top:8px; cursor:grab; }
+        .mm-wrap.dragging{ cursor:grabbing; }
+        .mm-wrap.dragging *{ user-select:none; }
+        .mm{ position:relative; }
+        .mm svg{ position:absolute; inset:0; overflow:visible; pointer-events:none; }
+        .mm .mn{ position:absolute; box-sizing:border-box; display:flex; flex-direction:column;
+          align-items:flex-start; justify-content:center; padding:5px 9px; border-radius:6px;
+          font-size:11.5px; line-height:1.28; z-index:2;
+          border:1px solid var(--line-strong); background:var(--paper-raised); color:var(--ink); }
+        .mm .mn small{ display:block; font-family:var(--mono); font-size:9px; color:var(--ink-faint); margin-top:2px; }
+        /* 깊이별 무게 — 뿌리가 가장 진하고 잎으로 갈수록 옅어진다 */
+        .mm .mn.d0{ background:#1e1c18; color:#fff; border-color:#1e1c18; font-weight:700; }
+        .mm .mn.d1{ background:var(--accent); color:#fff; border-color:var(--accent); font-weight:600; }
+        .mm .mn.d2{ background:var(--accent-soft); color:var(--accent-ink); border-color:var(--accent-soft-line); }
+        .mm .mn.d3{ background:var(--paper-raised); color:var(--ink-muted); }
+        .mm .mn.hot{ border-color:var(--crit); color:var(--crit); font-weight:600; }
+        .mm .mn .pri{ margin-left:6px; }
+      </style>
+
+      <script>
+      (function(){
+        // ── 여기만 갈아끼운다 ──────────────────────────────────────────────
+        // label 필수. s=부제(모노), hot=true 면 빨강 강조(돈·되돌릴 수 없는 것),
+        // children 없으면 잎.
+        var TREE = {
+          label:'PRD', s:'{{화면명}}', children:[
+            { label:'{{요구사항 1}}', s:'R-01', hot:true, children:[
+              { label:'{{기능}}', children:[ {label:'{{세부}}'} ] },
+              { label:'{{기능}}' }
+            ]},
+            { label:'{{요구사항 2}}', s:'R-02', children:[
+              { label:'{{기능}}' }
+            ]}
+          ]
+        };
+        // ──────────────────────────────────────────────────────────────────
+
+        var COLW=210, ROWH=42, NW=176, NH=30, NH2=40, PAD=16;
+        var root = document.getElementById('mm');
+        if(!root) return;
+
+        // 잎 순서대로 y 를 깔고, 부모는 자식들의 가운데로 올린다(tidy tree).
+        var nodes=[], leaf=0;
+        (function walk(n, depth){
+          n.depth = depth; n.h = n.s ? NH2 : NH;
+          if(n.children && n.children.length){
+            n.children.forEach(function(c){ walk(c, depth+1); });
+            // 첫·마지막 자식의 **중심** 평균에 맞춘다. 자식 높이가 다를 때
+            // (부제 있는 노드는 40px, 없으면 30px) 블록 범위로 잡으면 연결선 중점에서 어긋난다.
+            var f=n.children[0], l=n.children[n.children.length-1];
+            n.y = ((f.y + f.h/2) + (l.y + l.h/2)) / 2 - n.h/2;
+          } else {
+            n.y = leaf * ROWH; leaf++;
+          }
+          n.x = PAD + depth*COLW;
+          nodes.push(n);
+        })(TREE, 0);
+
+        var maxDepth = nodes.reduce(function(m,n){ return Math.max(m,n.depth); },0);
+        var W = PAD*2 + maxDepth*COLW + NW, H = leaf*ROWH + PAD*2;
+        nodes.forEach(function(n){ n.y += PAD; });
+        root.style.width=W+'px'; root.style.height=H+'px';
+
+        var svg=document.createElementNS('http://www.w3.org/2000/svg','svg');
+        svg.setAttribute('width',W); svg.setAttribute('height',H); root.appendChild(svg);
+
+        var stroke=getComputedStyle(document.documentElement).getPropertyValue('--line-strong').trim()||'#cfc9bc';
+        nodes.forEach(function(n){
+          var d=document.createElement('div');
+          d.className='mn d'+Math.min(n.depth,3)+(n.hot?' hot':'');
+          d.style.left=n.x+'px'; d.style.top=n.y+'px';
+          d.style.width=NW+'px'; d.style.height=n.h+'px';
+          d.innerHTML=n.label+(n.s?'<small>'+n.s+'</small>':'');
+          root.appendChild(d);
+          (n.children||[]).forEach(function(c){
+            var x1=n.x+NW, y1=n.y+n.h/2, x2=c.x, y2=c.y+c.h/2, dx=(x2-x1)/2;
+            var p=document.createElementNS('http://www.w3.org/2000/svg','path');
+            p.setAttribute('d','M'+x1+','+y1+' C'+(x1+dx)+','+y1+' '+(x2-dx)+','+y2+' '+x2+','+y2);
+            p.setAttribute('fill','none'); p.setAttribute('stroke',stroke); p.setAttribute('stroke-width','1');
+            svg.appendChild(p);
+          });
+        });
+
+        // 줌 — transform 은 레이아웃 크기를 안 바꾸니 래퍼 높이를 같이 준다
+        var wrap=document.getElementById('mmWrap'), z=1;
+        root.style.transformOrigin='0 0';
+        function setZoom(v, ax){
+          var prev=z; z=Math.min(2, Math.max(0.4, v));
+          root.style.transform='scale('+z+')';
+          wrap.style.height=(H*z+18)+'px';
+          document.getElementById('mVal').textContent=Math.round(z*100)+'%';
+          if(ax!=null) wrap.scrollLeft=(wrap.scrollLeft+ax)*(z/prev)-ax;
+        }
+        document.getElementById('mIn').onclick =function(){ setZoom(z*1.15); };
+        document.getElementById('mOut').onclick=function(){ setZoom(z/1.15); };
+        document.getElementById('mFit').onclick=function(){ setZoom((wrap.clientWidth-2)/W); wrap.scrollLeft=0; };
+        wrap.addEventListener('wheel', function(ev){
+          if(!ev.ctrlKey) return;            // 그냥 휠은 페이지 스크롤 그대로 둔다
+          ev.preventDefault();
+          setZoom(z*(ev.deltaY<0?1.1:1/1.1), ev.clientX-wrap.getBoundingClientRect().left);
+        }, {passive:false});
+        setZoom(1);
+
+        // 드래그로 좌우 이동
+        var down=false, sx=0, sl=0;
+        wrap.addEventListener('pointerdown', function(ev){
+          if(ev.target.closest('.mm-bar')) return;
+          down=true; sx=ev.clientX; sl=wrap.scrollLeft;
+          wrap.classList.add('dragging'); wrap.setPointerCapture(ev.pointerId);
+        });
+        wrap.addEventListener('pointermove', function(ev){ if(down) wrap.scrollLeft=sl-(ev.clientX-sx); });
+        ['pointerup','pointercancel'].forEach(function(t){
+          wrap.addEventListener(t, function(){ down=false; wrap.classList.remove('dragging'); });
+        });
+      })();
+      </script>
