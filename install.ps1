@@ -102,16 +102,26 @@ Set-Copy (Join-Path $repo 'home\statusline-wrapper.ps1') (Join-Path $dotcl 'stat
 Set-Copy (Join-Path $repo 'home\harness-status.ps1')     (Join-Path $dotcl 'harness-status.ps1')
 
 # settings.json 의 statusLine 은 **절대경로**여야 한다 — `-File` 은 `~` 를 안 풀고,
-# `-Command "$HOME/..."` 은 호출 셸이 bash 면 MSYS 경로(`/c/Users/...`)로 풀려 pwsh 가 못 읽는다
+# `-Command "$HOME/..."` 은 호출 셸이 bash 면 MSYS 경로(`/c/Users/...`)로 풀려 못 읽는다
 # (2026-08-08 실측, 셋 다 시도). 그래서 PC 마다 다른 경로를 여기서 심는다.
+#
+# 2026-08-28 교체: pwsh wrapper → ccstatusline. 상태줄은 refreshInterval 마다 도는데
+# pwsh 기동이 비싸고, `npx -y ...@latest` 는 매번 레지스트리를 타 **3.3~4.1초**였다
+# (10초 간격 = CPU 의 35%). 전역 설치본을 node 로 직접 부르면 **0.6~1.5초**다.
+# 하네스 상태칸이 다시 필요하면 statusline-wrapper.ps1 이 레포에 그대로 있다.
 try {
+    $cc = Join-Path $env:APPDATA 'npm\node_modules\ccstatusline\dist\ccstatusline.js'
+    if (-not (Test-Path $cc)) {
+        Write-Host "  ccstatusline 설치 중..." -Fore DarkGray
+        npm i -g ccstatusline 2>&1 | Out-Null
+    }
+    if (-not (Test-Path $cc)) { throw "ccstatusline 설치 실패: $cc" }
     $sPath = Join-Path $dotcl 'settings.json'
-    $wrapper = Join-Path $dotcl 'statusline-wrapper.ps1'
     $s = Get-Content -Raw $sPath | ConvertFrom-Json
     if ($s.statusLine) {
-        $s.statusLine.command = 'pwsh -NoProfile -File "' + $wrapper + '"'
+        $s.statusLine.command = 'node "' + ($cc -replace '\\', '/') + '"'
         $s | ConvertTo-Json -Depth 20 | Set-Content -LiteralPath $sPath -Encoding UTF8
-        Write-Host "  statusLine → $wrapper" -Fore DarkGray
+        Write-Host "  statusLine → ccstatusline" -Fore DarkGray
     }
 } catch {
     Write-Warning "statusLine 경로 심기 실패(상태줄은 그대로 동작): $($_.Exception.Message)"

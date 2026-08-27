@@ -19,7 +19,7 @@
   },
   "statusLine": {
     "type": "command",
-    "command": "pwsh -NoProfile -File \"C:\\Users\\user\\.claude\\statusline-wrapper.ps1\"",
+    "command": "ccstatusline",
     "padding": 0,
     "refreshInterval": 30
   },
