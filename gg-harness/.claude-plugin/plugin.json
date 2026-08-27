@@ -1,7 +1,7 @@
 {
   "name": "gg-harness",
-  "version": "1.8.1",
-  "description": "북마트·쿠팡 공용 Claude Code plugin. harness/review + wiki(ingest/lint/query) + 진단·검증 skills. 실행기·전역 settings·프로젝트 secret은 포함하지 않는다.",
+  "version": "1.9.0",
+  "description": "공용 전문 도구 plugin. 범용 개발 workflow(기획·계획·TDD·subagent·review·verification)는 Superpowers를 정본으로 사용하고, 이 plugin은 도메인 모델링·진단·보안·성능·위키 등 보완 도구만 제공한다.",
   "author": {
     "name": "gggmlduswjs",
     "url": "https://github.com/gggmlduswjs"
@@ -9,11 +9,11 @@
   "homepage": "https://github.com/gggmlduswjs/claude",
   "repository": "https://github.com/gggmlduswjs/claude",
   "keywords": [
-    "harness",
+    "specialist-tools",
     "wiki",
     "second-brain",
-    "code-audit",
-    "production-readiness",
+    "security",
+    "performance",
     "ai-readiness",
     "claude-code-plugin"
   ]
