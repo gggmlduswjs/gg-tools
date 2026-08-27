@@ -23,7 +23,10 @@ function Invoke-ClaudePlugin {
     [switch]$AllowFailure
   )
 
-  & claude @Args
+  # Out-Host 필수: `& claude @Args` 의 stdout 이 파이프라인에 남으면 함수 반환값이
+  # [출력줄..., $false] 배열이 되고, PowerShell 은 비어있지 않은 배열을 항상 참으로 본다.
+  # 그러면 호출부의 `if ($updated)` 가 실패를 성공으로 읽어 install 을 통째로 건너뛴다.
+  & claude @Args | Out-Host
   $code = $LASTEXITCODE
   if ($code -ne 0 -and -not $AllowFailure) {
     throw "claude $($Args -join ' ') 실패 (exit $code)"
