@@ -1,4 +1,4 @@
-# bootstrap.ps1 — gg-tools 한 번 실행으로 공용 Claude Code 환경을 설치/업데이트한다.
+﻿# bootstrap.ps1 — gg-tools 한 번 실행으로 공용 Claude Code 환경을 설치/업데이트한다.
 #
 # 설치/업데이트 대상:
 #   1) Superpowers (Anthropic 공식 marketplace)
@@ -73,6 +73,19 @@ if (-not $marketReady) {
   }
 }
 Ensure-Plugin 'gg-skills@gg-tools'
+
+# 2.5) mattpocock-skills — 업스트림 정본.
+#      gg-skills 는 domain-modeling·grilling 을 여기서 복사해 갖고 있었고 업스트림이
+#      갱신되는 동안 사본이 낡았다(2026-08-30: grilling 10줄 vs 업스트림 28줄).
+#      사본을 지웠으니 이 플러그인이 없으면 두 스킬을 잃는다 — 설치는 선택이 아니다.
+$mpReady = Invoke-ClaudePlugin -Args @('plugin','marketplace','update','mattpocock') -AllowFailure
+if (-not $mpReady) {
+  $mpReady = Invoke-ClaudePlugin -Args @('plugin','marketplace','add','mattpocock/skills','--scope','user') -AllowFailure
+  if (-not $mpReady) {
+    throw 'mattpocock marketplace 추가 실패. GitHub 인증/네트워크를 확인해라.'
+  }
+}
+Ensure-Plugin 'mattpocock-skills@mattpocock'
 
 # 3) grill-me — RobMitt 원본은 marketplace plugin이 아니라 단일 Claude skill이다.
 Write-Host "`n== grill-me ==" -Fore Cyan

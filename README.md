@@ -7,7 +7,8 @@
 범용 개발 workflow의 정본은 **Superpowers**다.
 
 - brainstorming / planning / worktree / TDD / execution / debugging / verification → Superpowers
-- 기존 시스템 현대화, domain-modeling, code-review-7p, 보안·성능·AI-readiness·위키 → **gg-skills**
+- 기존 시스템 현대화, code-review-7p, 보안·성능·AI-readiness·위키 → **gg-skills**
+- grilling, domain-modeling, handoff, tdd 등 범용 엔지니어링 스킬 → **mattpocock-skills** (업스트림 정본. gg-skills 가 갖고 있던 사본 2개는 2026-08-30 에 뺐다)
 - 집요한 요구사항 인터뷰 → **RobMitt/grill-me-skill**
 - 프로젝트 고유 DB/배포/worktree/UI 규칙 → 각 프로젝트의 `CLAUDE.md`, `AGENTS.md`, `.claude/rules/`
 

@@ -10,12 +10,11 @@
     {
       "name": "gg-skills",
       "source": "./gg-skills",
-      "description": "기존 시스템 현대화·도메인 모델링·코드 리뷰·보안·성능·AI readiness·위키 등 공용 전문 스킬 묶음.",
+      "description": "기존 시스템 현대화·코드 리뷰·보안·성능·AI readiness·위키 등 공용 전문 스킬 묶음. 도메인 모델링·grilling 은 mattpocock-skills 가 정본이다.",
       "category": "productivity",
       "keywords": [
         "skills",
         "modernization",
-        "domain-modeling",
         "security",
         "performance",
         "ai-readiness"
