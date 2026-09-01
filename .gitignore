@@ -27,9 +27,13 @@ Thumbs.db
 #    같은 이름 폴더에 건다 — `hooks/` 는 플러그인의 `gg-skills/hooks/` 를, `scripts/` 는
 #    `gg-skills/skills/*/scripts/` 를 같이 무시해 버린다(2026-08-13 발견).
 /.claude/
-/.githooks/
 /hooks/
 /projects/
+
+# ⭐2026-09-01: `/.githooks/` 의 무시를 **걷었다.** `install.ps1` 이
+#   `git config core.hooksPath .githooks` 를 거는데 파일이 git 에 없어서
+#   **새 PC 에는 훅이 한 개도 안 깔렸다** — 위 08-13 교훈("새 PC 복구 경로가
+#   통째로 허구였다")과 같은 모양이라 같은 처방을 한다.
 
 # ★2026-08-13: `install.ps1`·`home/`·`powershell/`·`scripts/`·운영 문서 3종의 무시를 **걷어냈다.**
 #   08-10 대청소(d4e56c5)가 *"이 레포는 plugin source 다"* 라며 뺐는데, 그건 **플러그인 본체가
