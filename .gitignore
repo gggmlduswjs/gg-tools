@@ -19,15 +19,13 @@ dist/
 .DS_Store
 Thumbs.db
 
-# forge 레포(Desktop/forge)로 심링크된 스킬 — 정본은 그쪽
-skills/arch-forge
-skills/backend-forge
-skills/forge-loop
-skills/frontend-forge
+# ⛔ 2026-09-01: forge 심링크(arch/backend/frontend-forge·forge-loop)는 이미 없다.
+#    루트 `skills/` 에 남은 건 `__pycache__` 잔재뿐이라 아래 `__pycache__/` 규칙이 먹는다.
+#    되살아나면 여기 다시 적는다.
 # ── local machine wiring, not plugin package ─────────────────────────────
 # ⚠️ 전부 `/` 로 시작한다 = **루트에만** 건다. 앞에 `/` 가 없으면 git 은 모든 깊이의
-#    같은 이름 폴더에 건다 — `hooks/` 는 플러그인의 `gg-harness/hooks/` 를, `scripts/` 는
-#    `gg-harness/skills/*/scripts/` 를 같이 무시해 버린다(2026-08-13 발견).
+#    같은 이름 폴더에 건다 — `hooks/` 는 플러그인의 `gg-skills/hooks/` 를, `scripts/` 는
+#    `gg-skills/skills/*/scripts/` 를 같이 무시해 버린다(2026-08-13 발견).
 /.claude/
 /.githooks/
 /hooks/
@@ -43,6 +41,7 @@ skills/frontend-forge
 
 # ⚠️ 루트 `hooks/` 의 예외(`!hooks/**`)는 2026-08-13 에 걷어냈다.
 # 08-10 대청소(d4e56c5) 직후 #14 가 "shared TDD guard engine" 을 넣으려고 예외를 뚫었는데,
-# 08-11 플러그인 nest 로 엔진 자리가 `gg-harness/hooks/` 로 옮겨가면서 이 예외는 낡았다.
+# 08-11 플러그인 nest 로 엔진 자리가 `gg-harness/hooks/`(→2026-09-01 `gg-skills/hooks/`) 로
+# 옮겨가면서 이 예외는 낡았다.
 # 그런데 로컬 디스크의 옛 폴더가 남아 쿠팡 shim 이 **추적 안 되는 옛 엔진으로 조용히 돌았다**.
-# 공용 훅 엔진의 자리는 이제 `gg-harness/hooks/` 하나다 — 루트 `hooks/` 는 로컬 잔재이므로 무시한다.
+# 공용 훅 엔진의 자리는 이제 `gg-skills/hooks/` 하나다 — 루트 `hooks/` 는 로컬 잔재이므로 무시한다.
