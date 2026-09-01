@@ -2,7 +2,7 @@
 // "내 위치" 기준으로 경로를 만들면 안 된다 — 그러면 플러그인 자신을 레포로 착각한다.
 //
 // 계약 (2026-08-13 이관):
-//   프레임워크 = `~/claude/gg-harness/evals/behavior/`  (한 벌 · npm ci 도 여기 한 번)
+//   프레임워크 = `~/claude/gg-skills/evals/behavior/`  (한 벌 · npm ci 도 여기 한 번)
 //   데이터      = `<레포>/.dev/harness/evals/behavior/`  (cases · prompts · results)
 //
 // 왜 갈랐나: 판정·집계·균형 로직은 레포와 무관하고, **무엇을 재는가는 레포마다 다르다.**

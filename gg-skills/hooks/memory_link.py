@@ -14,7 +14,7 @@
   레포가 옮겨가도 워크트리를 따도 배선이 따라온다.
 
 각 레포는 `.claude/hooks/memory_link.py` shim 에서 환경변수만 정하고 이 파일을 실행한다
-(tdd_guard·commit_sentinel 과 같은 배선).
+(commit_sentinel 과 같은 배선).
 
     MEMORY_DRIVE_NAME   Drive 쪽 폴더 이름 (예: coupang-v2-memory)   필수
     MEMORY_DRIVE_ROOT   공용 루트                                     기본 G:\\내 드라이브\\claude-sync

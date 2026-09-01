@@ -73,8 +73,8 @@ gg-tools/
 ├─ gg-skills/                        # 현재 공용 전문 plugin
 │  ├─ .claude-plugin/plugin.json
 │  ├─ commands/
+│  ├─ hooks/
 │  └─ skills/
-└─ gg-harness/                       # deprecated 호환본; 신규 설치 금지
 ```
 
 `gg-skills`는 명시적 version을 고정하지 않는다. Git-hosted marketplace의 commit SHA를 버전으로 사용하므로 새 변경이 merge되면 `bootstrap.ps1`의 `claude plugin update`가 최신 커밋을 받는다.
@@ -85,4 +85,8 @@ Claude Code의 bootstrap이 Codex plugin까지 대신 설치하지는 않는다.
 
 ## Legacy
 
-기존 `gg-harness`, `/harness`, 자체 phase/step 실행기, 자체 TDD workflow는 deprecated다. 프로젝트 참조가 모두 제거된 뒤 별도 cleanup으로 삭제한다.
+기존 `gg-harness` plugin, `/harness` command, 자체 phase/step 실행기, 자체 TDD workflow(`tdd_guard.py`)는
+**2026-09-01 에 삭제했다.** 범용 workflow 정본은 Superpowers 다 — 계획은 `writing-plans`,
+실행은 `subagent-driven-development`, TDD 는 `test-driven-development`, 완료 검증은
+`verification-before-completion`. `gg-skills` 는 Superpowers 가 안 다루는 축(보안·성능·관측성·
+진단·위키·기존시스템 현대화)만 맡는다.

@@ -10,7 +10,7 @@ function scratch(): string {
 }
 
 // ⚠️ 2026-08-13 이관 후로는 **자기 위치로 레포를 찾지 않는다.** 이 프레임워크는
-//    플러그인(`~/claude/gg-harness/evals/behavior/`)에 살고 대상 레포는 밖에 있어서,
+//    플러그인(`~/claude/gg-skills/evals/behavior/`)에 살고 대상 레포는 밖에 있어서,
 //    `import.meta.dirname` 에서 위로 올라가면 플러그인 레포를 찾거나 못 찾는다.
 //    그래서 테스트도 임시 폴더로 짓는다 — 어디서 돌려도 같은 결과여야 한다.
 function fakeRepo(): string {

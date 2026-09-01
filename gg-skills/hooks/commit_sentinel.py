@@ -12,7 +12,7 @@
 한 번만 나도 우회가 상시화되지만(2026-08-01 진단), 알리는 장치는 오탐이 나도 손해가
 "한 줄 더 읽는 것" 뿐이다. 그래서 임계를 실측 p99 근처로 놓고 넉넉히 본다.
 
-각 레포는 `.git/hooks/post-commit` 에서 환경변수만 정하고 이 파일을 실행한다(tdd_guard 와 같은 배선).
+각 레포는 `.git/hooks/post-commit` 에서 환경변수만 정하고 이 파일을 실행한다(memory_link 와 같은 배선).
 
     SENTINEL_FILES     혼자일 때 파일 수 임계        기본 40
     SENTINEL_DIRS      혼자일 때 디렉터리 span 임계  기본 6

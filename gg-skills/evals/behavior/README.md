@@ -7,7 +7,7 @@
 
 | | 어디 | 무엇 |
 |---|---|---|
-| **프레임워크** | `~/claude/gg-harness/evals/behavior/` (여기 · 한 벌) | 판정·집계·균형·클라이언트. `npm ci` 도 여기 한 번 |
+| **프레임워크** | `~/claude/gg-skills/evals/behavior/` (여기 · 한 벌) | 판정·집계·균형·클라이언트. `npm ci` 도 여기 한 번 |
 | **데이터** | `<레포>/.dev/harness/evals/behavior/` | `cases/` · `prompts/` · `results/` |
 
 **왜 갈랐나:** 판정 로직은 레포와 무관하고, **무엇을 재는가는 레포마다 다르다.**
@@ -20,7 +20,7 @@
 ## 돌리는 법
 
 ```bash
-cd ~/claude/gg-harness/evals/behavior
+cd ~/claude/gg-skills/evals/behavior
 npm ci                                    # 한 번
 
 EVAL_REPO="C:/…/Coupang_v2" npm test                    # 키 없이. 파서·판정·균형·golden set

@@ -1,8 +1,9 @@
-﻿# hooks — Claude Code 공용 훅 엔진
+# hooks — Claude Code 공용 훅 엔진
 
 레포 shim(`.claude/hooks/*.py`)이 `runpy` 로 여기를 부른다. **로직은 여기 한 벌.**
 
-⚠️★★★ **엔진의 자리는 여기(`gg-harness/hooks/`) 하나다.** 레포 루트의 `hooks/` 는
+⚠️★★★ **엔진의 자리는 여기(`gg-skills/hooks/`) 하나다.** 레포 루트의 `hooks/` 와
+2026-08-11~09-01 자리였던 `gg-harness/hooks/` 는
 2026-08-11 플러그인 nest 이전 자리이고 지금은 gitignore 다 — 거기 파일을 두지 마라.
 
 > **왜 이 경고가 있나 (2026-08-13):** 08-11 에 엔진이 `hooks/` → `gg-harness/hooks/` 로
@@ -12,16 +13,6 @@
 > 없었으면 shim 이 `exit 0` 해서 금방 티가 났을 것이다 — **잔재가 실패를 감췄다.**
 > 그래서 shim 은 경로를 박지 말고 **후보 순서**(새 자리 먼저, 옛 자리 폴백)로 쓴다.
 
-## tdd_guard.py
-
-PreToolUse[Write|Edit] — 가드 범위 소스를 고칠 때 테스트 참조가 없으면 `ask`(기본).
-
-환경변수 (shim 이 설정):
-- `TDD_GUARDED` — 콤마 구분 path 토큰 (예: `/src/orders/services/`)
-- `TDD_TESTS` — 테스트 루트 glob (예: `src/*/tests,tests`)
-- `TDD_DECISION` — `ask`(기본) 또는 `deny` (데모 프로젝트식 하드 차단)
-
-self-test: `python ~/claude/gg-harness/hooks/tdd_guard.py --selftest`
 
 ## commit_sentinel.py
 
@@ -32,7 +23,7 @@ post-commit — 방금 만든 커밋이 이상하면 **알린다**(막지 않는
 - `SENTINEL_DIRS` — 최상위 디렉터리 수 임계 (6)
 - `SENTINEL_SESSIONS` — 세션 기록 경로 (`.claude/sessions`)
 
-self-test: `python ~/claude/gg-harness/hooks/commit_sentinel.py --selftest` (20 cases)
+self-test: `python ~/claude/gg-skills/hooks/commit_sentinel.py --selftest` (20 cases)
 
 > **왜 여기로 왔나 (2026-08-13):** 08-10 대청소(`d4e56c5`)가 로컬 배선과 함께 이 파일도
 > git 에서 뺐다. 그 뒤 **추적이 안 되니 새 PC 에는 아예 없었고**, 훅은 `[ -f ] || exit 0`
@@ -60,7 +51,7 @@ RULES = REPO_DENY + engine["deny_common"](migration_hint="…") \
 ★`check(RULES, REPO_CASES)` 는 **공용 케이스 57종을 반드시 같이 돌린다** — 레포가 순서를
 잘못 이어붙여 공용 보호가 죽으면 **그 레포의 selftest 에서** 빨개진다.
 
-self-test: `python ~/claude/gg-harness/hooks/guardrail.py --selftest` (공용 57 cases)
+self-test: `python ~/claude/gg-skills/hooks/guardrail.py --selftest` (공용 57 cases)
 
 ⚠️★★★ **DDL 규칙만 문맥을 본다** (2026-08-22). 그 전엔 명령 문자열 **어디에든**
 DDL 단어가 있으면 막아서, DB 를 전혀 안 건드리는 작업을 하루에 네 번 막았다 —
@@ -90,8 +81,8 @@ SessionStart 보조 — main 에서 너무 멀어진 워크트리를 **알린다
 - `WORKTREE_REPORT_MAX` — 화면에 띄울 최대 개수 (기본 5)
 - `WORKTREE_BASE` — 비교 기준 (기본 `origin/main`)
 
-self-test: `python ~/claude/gg-harness/hooks/stale_worktrees.py --selftest` (9 cases · git 없이 돈다)
-직접 보기: `python ~/claude/gg-harness/hooks/stale_worktrees.py <레포경로>`
+self-test: `python ~/claude/gg-skills/hooks/stale_worktrees.py --selftest` (9 cases · git 없이 돈다)
+직접 보기: `python ~/claude/gg-skills/hooks/stale_worktrees.py <레포경로>`
 
 > **왜 나이가 아니라 커밋 수인가:** main 이 하루 50~72커밋으로 움직인다. 실측 대응은
 > 1일≈34~69 · 2일≈92~124 · 4일≈195 · **6일=416커밋**. 416커밋 뒤처진 워크트리에서
@@ -112,7 +103,7 @@ SessionStart — 프로젝트 메모리(`~/.claude/projects/<슬러그>/memory`)
 - `MEMORY_DRIVE_NAME` — Drive 쪽 폴더 이름 (예: `coupang-v2-memory`). **없으면 아무것도 안 한다**
 - `MEMORY_DRIVE_ROOT` — 공용 루트 (기본 `G:\내 드라이브\claude-sync`)
 
-self-test: `python ~/claude/gg-harness/hooks/memory_link.py --selftest` (8 cases)
+self-test: `python ~/claude/gg-skills/hooks/memory_link.py --selftest` (8 cases)
 
 > **왜 생겼나 (2026-08-13):** 슬러그는 **작업 폴더 절대경로**에서 나온다. 그래서 레포를
 > 옮기면 슬러그가 바뀌고 새 자리에 **빈 memory 폴더**가 생긴다 — 그날부터 그 레포

@@ -24,11 +24,11 @@
     "refreshInterval": 30
   },
   "enabledPlugins": {
-    "gg-harness@gg-harness": true,
+    "gg-skills@gg-tools": true,
     "ponytail@ponytail": false
   },
   "extraKnownMarketplaces": {
-    "gg-harness": {
+    "gg-tools": {
       "source": {
         "source": "github",
         "repo": "gggmlduswjs/claude"
@@ -60,4 +60,3 @@
   "voiceEnabled": true,
   "cleanupPeriodDays": 14
 }
-

@@ -19,14 +19,6 @@
         "performance",
         "ai-readiness"
       ]
-    },
-    {
-      "name": "gg-harness",
-      "source": "./gg-harness",
-      "version": "1.9.0",
-      "description": "Deprecated compatibility plugin. 새 설치는 gg-skills를 사용한다.",
-      "category": "productivity",
-      "keywords": ["deprecated", "compatibility"]
     }
   ]
 }

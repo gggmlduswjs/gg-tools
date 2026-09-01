@@ -1,5 +1,5 @@
 #!/usr/bin/env pwsh
-# ai-engine.ps1 — AI 하네스 공용 엔진 (gg-harness 플러그인 **정본**).
+# ai-engine.ps1 — AI 하네스 공용 엔진 (이 레포가 **정본**).
 #
 # 각 레포의 `ai.ps1` 은 이 파일을 dot-source 하는 얇은 shim 이다.
 # ⛔ 로직을 레포로 복사하지 마라 — 2026-08-08 에 Coupang_v2 와 bookmart 가 각각 1,000줄짜리

@@ -204,7 +204,7 @@ $cnt = (Get-ChildItem "$dotcl\skills" -Directory -EA SilentlyContinue | Where-Ob
 Write-Host ("  {0,-12} {1}종 (forge 보류 — 나머지는 plugin)" -f 'skills', $cnt)
 # plugin 이 실제로 깔렸는지 — 여기가 비면 스킬 22종이 통째로 없는 것이다.
 # **이 확인이 없으면 "install 성공"이 스킬 없는 환경을 초록으로 덮는다.**
-# 캐시 폴더를 뒤지지 않는다 — 실제 경로가 `cache\gg-harness\gg-harness\1.0.0\...` 라
+# 캐시 폴더를 뒤지지 않는다 — 실제 경로가 `cache\gg-tools\gg-skills\<sha>\...` 라
 # 깊이를 잘못 잡으면 깔려 있는데 X 가 뜬다(2026-08-06 실측). 정본은 installed_plugins.json.
 #
 # ⚠️★★★2026-08-17: **마켓플레이스 add 는 install 이 아니다.** ponytail 은 08-13 에
@@ -242,9 +242,11 @@ function Test-ClaudePlugin {
   return $false
 }
 
-# gg-harness = 필수. 없으면 harness·review·wiki 스킬이 통째로 없다.
-if (-not (Test-ClaudePlugin -Label 'plugin' -Key 'gg-harness@gg-harness' `
-                            -Marketplace 'gggmlduswjs/claude' -Required)) { $ok = $false }
+# gg-skills = 필수. 없으면 review·wiki·보안·성능 스킬이 통째로 없다.
+# ⚠️2026-09-01: 옛 키 `gg-harness@gg-harness` 를 보고 있었는데 그 플러그인은 폐기됐다 —
+#   실제 설치는 `gg-skills@gg-tools` 뿐이라 이 검사가 **매번 X 를 찍고 있었다.**
+if (-not (Test-ClaudePlugin -Label 'plugin' -Key 'gg-skills@gg-tools' `
+                            -Marketplace 'gggmlduswjs/gg-tools' -Required)) { $ok = $false }
 # ponytail = 선택. 「가장 게으른 해법」 상시 모드 + 과설계 감사 스킬 5종.
 # ⚠️없어도 install 실패로 치지 않는다 — 이건 취향이지 하네스 부품이 아니다.
 # ⚠️깔면 SessionStart·SubagentStart·UserPromptSubmit 훅이 붙어 **매 프롬프트에 지침이 주입된다.**
