@@ -14,9 +14,9 @@
 | **1·02** | Vibe Coding 한계 | 핵심은 **"코드를 안 읽는 것"**. 온램프이지 목적지 아님. 배포 전 체크리스트 5문 | — |
 | **1·03** | Agentic Engineering | **5 Pillars** Context·Validation·Tooling·Codebases·Compound. **50% 룰** · Consistency over DRY | — |
 | **1·04** ⭐ | **Harness Engineering** | **6축**(구조·맥락·계획·실행·검증·개선) · 경계 3종 · Generator≠Evaluator · 빈도 트리거 | **이 스킬의 프레임 원본** |
-| **1·05** | 실전 테크닉 11자산 | CLAUDE.md · AI-Ready · Second Brain · Team Plugin · TDD/SDD · 토큰 · 코드리뷰 · Guardrails · Oncall | `ai-readiness-cartography` · `improve-token-efficiency` · `code-review-7p` |
+| **1·05** | 실전 테크닉 11자산 | CLAUDE.md · AI-Ready · Second Brain · Team Plugin · TDD/SDD · 토큰 · 코드리뷰 · Guardrails · Oncall | `ai-readiness-cartography` · `improve-token-efficiency` · 내장 `/code-review` |
 | **2·01** | Full-Stack SaaS | SDD 5단계 · **Grill-me**(설계 단계 adversarial) · PRD/Arch/ADR · `execute.py` 루프 | **`harness`** · `grilling`·`grill-me`·`grill-with-docs` · `product-spec-kit` · `domain-modeling` |
-| **2·02** | Autonomous PR Reviewer | 심각도 4단계=**자동화의 계약서** · 차원별 병렬 · 게이트 · **오탐 1건=신뢰 10건** | `code-review-7p` (+ 내장 `/code-review`) |
+| **2·02** | Autonomous PR Reviewer | 심각도 4단계=**자동화의 계약서** · 차원별 병렬 · 게이트 · **오탐 1건=신뢰 10건** | 내장 `/code-review` (+ `/review` 프로젝트 축) |
 | **2·03** ⭐ | Production Scalability | 프로덕션 **5축**(성능·보안·데이터안전·관측성·**품질**). **품질 = 하네스 Eval** · read-only 원칙 | `owasp-security-scan` · `supabase-db-advisor` · **Eval 은 스킬 없음** |
 | **2·04** | CI/CD 통합 에이전트 | **Alert as Code** — 클릭에서 코드로. 노이즈/신호 판정 · **빈손으로 깨우지 않는다** | — |
 | **3·01** ⭐ | AX 마인드셋 | in the loop → **on the loop**. 못 맡기겠다 = 툴·컨텍스트 신호. **자산도 썩는다(staleness)** · 지속개선 루프 | **없음 — 이 스킬이 담당** |
