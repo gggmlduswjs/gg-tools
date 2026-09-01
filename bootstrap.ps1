@@ -1,4 +1,4 @@
-﻿# bootstrap.ps1 — gg-tools 한 번 실행으로 공용 Claude Code 환경을 설치/업데이트한다.
+# bootstrap.ps1 — gg-tools 한 번 실행으로 공용 Claude Code 환경을 설치/업데이트한다.
 #
 # 설치/업데이트 대상:
 #   1) Superpowers (Anthropic 공식 marketplace)
@@ -58,7 +58,8 @@ Write-Host "`n== Claude Code plugins ==" -Fore Cyan
 Ensure-Plugin 'superpowers@claude-plugins-official'
 
 # 2) gg-tools marketplace → gg-skills.
-#    repo가 claude→gg-tools로 rename 되는 과도기라 새 이름을 먼저 시도하고 옛 URL은 fallback으로 둔다.
+#    2026-09-01 에 repo 를 claude→gg-tools 로 rename 했다. 옛 이름은 GitHub 리다이렉트로
+#    아직 붙지만, 옛 클론이 남은 PC 를 위해 fallback 을 남겨 둔다.
 $marketReady = Invoke-ClaudePlugin -Args @('plugin','marketplace','update','gg-tools') -AllowFailure
 if (-not $marketReady) {
   # 옛 marketplace를 제거하면 그 marketplace에서 설치했던 legacy gg-harness도 같이 정리된다.
@@ -66,6 +67,7 @@ if (-not $marketReady) {
 
   $marketReady = Invoke-ClaudePlugin -Args @('plugin','marketplace','add','gggmlduswjs/gg-tools','--scope','user') -AllowFailure
   if (-not $marketReady) {
+    # 옛 이름 — GitHub 리다이렉트. 2026-09-01 rename 전 클론이 남은 PC 용 fallback.
     $marketReady = Invoke-ClaudePlugin -Args @('plugin','marketplace','add','gggmlduswjs/claude','--scope','user') -AllowFailure
   }
   if (-not $marketReady) {

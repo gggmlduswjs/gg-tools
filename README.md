@@ -50,7 +50,7 @@ pwsh ./bootstrap.ps1 -SkipPcWiring   # plugin/skill만 갱신
 현재 repo 이름이 `claude`인 동안:
 
 ```powershell
-gh repo clone gggmlduswjs/claude ~/gg-tools
+gh repo clone gggmlduswjs/gg-tools ~/claude
 pwsh ~/gg-tools/bootstrap.ps1
 ```
 
@@ -61,7 +61,9 @@ gh repo clone gggmlduswjs/gg-tools ~/gg-tools
 pwsh ~/gg-tools/bootstrap.ps1
 ```
 
-bootstrap은 rename 과도기를 위해 `gggmlduswjs/gg-tools`를 먼저 시도하고, 없으면 `gggmlduswjs/claude`를 fallback으로 사용한다.
+2026-09-01 에 repo 를 `gggmlduswjs/claude` → `gggmlduswjs/gg-tools` 로 rename 했다. bootstrap 은 새 이름을 먼저 쓰고, rename 전 클론이 남은 PC 를 위해 옛 이름을 fallback 으로 둔다(GitHub 리다이렉트).
+
+⚠️ **로컬 클론 경로는 `~/claude` 그대로다** — 훅 엔진·shim·문서가 전부 `~/claude/gg-skills/...` 를 가리킨다. 폴더 이름은 바꾸지 마라.
 
 ## Plugin 구조
 

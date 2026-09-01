@@ -7,7 +7,7 @@ git 이 옮겨주는 것과 **사람이 손으로 해야 하는 것**을 구분�
 
 ```powershell
 gh auth login                                           # 전부 private 레포다
-gh repo clone gggmlduswjs/claude $env:USERPROFILE\claude
+gh repo clone gggmlduswjs/gg-tools $env:USERPROFILE\claude
 pwsh $env:USERPROFILE\claude\install.ps1                # 프로필 배선 + ~\.claude 배치 + 메모리 심링크
 New-Item -ItemType Directory -Force "$env:USERPROFILE\Desktop\북마트", "$env:USERPROFILE\Desktop\쿠팡" | Out-Null
 

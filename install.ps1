@@ -1,10 +1,10 @@
 # install.ps1 — 이 PC 에 claude 레포를 배선한다(멱등).
-#   새 PC:  gh repo clone gggmlduswjs/claude ~\claude ;  pwsh ~\claude\install.ps1 ;  새 터미널
+#   새 PC:  gh repo clone gggmlduswjs/gg-tools ~\claude ;  pwsh ~\claude\install.ps1 ;  새 터미널
 #   -Force = 이미 있는 ~\.claude 파일도 덮어씀(기본은 안 건드림 — 그 PC 설정을 날리지 않는다)
 #   -InstallForge = 보류 중인 forge 스킬 4종을 명시적으로 다시 배선
 #
 # 무엇을 어떻게 배치하나:
-#   plugin = 스킬 22종. `/plugin install gggmlduswjs/claude` 로 받는다 — 이 스크립트가 아니다.
+#   plugin = 스킬 22종. `/plugin install gg-skills@gg-tools` 로 받는다 — 이 스크립트가 아니다.
 #   심링크 = 한 벌만 존재해야 하는 것(CLAUDE.md·agents).
 #            forge 스킬 4종은 2026-08-10 부터 명시 옵션(-InstallForge)일 때만 배선.
 #   복사   = Claude Code 가 자주 덮어쓰거나 PC 마다 달라야 하는 것(settings.json 의
@@ -89,7 +89,7 @@ if (-not $wired) {
 
 # ── 2) ~/.claude 배치 ───────────────────────────────────────────────────
 # ⚠️ skills 는 **여기서 링크하지 않는다**(2026-08-06 전환). 레포 루트 `skills/` 를
-#    plugin 이 나른다 — `/plugin install gggmlduswjs/claude`. 아래 2.5) 의 forge 만 예외다.
+#    plugin 이 나른다 — `/plugin install gg-skills@gg-tools`. 아래 2.5) 의 forge 만 예외다.
 Write-Host "`n== ~/.claude ==" -Fore Cyan
 Set-Link (Join-Path $dotcl 'CLAUDE.md') (Join-Path $repo 'home\CLAUDE.md')
 Set-Link (Join-Path $dotcl 'agents')    (Join-Path $repo 'home\agents')
