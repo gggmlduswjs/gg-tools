@@ -89,7 +89,10 @@ Claude 는 설계·리뷰만 하고 승인된 plan 을 `.dev/plans/` 에 남긴�
 | 토큰·비용 | `improve-token-efficiency` |
 | HTML 보고서 | `report` |
 
-forge(`arch-forge`·`backend-forge`·`frontend-forge`)는 **필요할 때만** — bookmart `_scripts/install_forge.ps1`.
+⛔ **forge(`arch-forge`·`backend-forge`·`frontend-forge`·`forge-loop`)는 지웠다** (2026-09-10).
+두 레포가 이미 걷은 것을 여기만 살아 있다고 광고하고 있었다 — Coupang_v2 08-07(<q>forge 판 그냥
+빼버려</q>) · bookmart 08-21. 가리키던 `_scripts/install_forge.ps1` 은 그때 같이 사라졌다.
+되살릴 일이 있으면 `gh repo clone gggmlduswjs/forge`.
 
 ## 6. Cursor
 
