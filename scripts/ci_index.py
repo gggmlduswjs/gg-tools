@@ -33,13 +33,22 @@ VAULT = Path(os.environ.get("CI_VAULT", r"G:\내 드라이브\Obsidian"))
 OUT = Path(os.environ.get("CI_INDEX_OUT", HOME / "claude" / "_ci" / "index.md"))
 
 # (표시이름, 루트, [루트 기준 하위경로], git 레포인가)
-# 하위경로를 명시하는 이유 — 레포 md 를 전부 담으면 Coupang docs/memory 215개가
+# 하위경로를 명시하는 이유 — 레포 md 를 전부 담으면 Coupang `docs/_ai` 413개(memory 310)가
 # 인덱스의 절반을 먹는다. 그건 Claude 가 자동으로 읽는 것이지 사람이 찾을 대상이 아니다.
 SOURCES = [
-    ("bookmart", DESKTOP / "bookmart", [".dev/plans", ".dev/research", ".dev/maps"], True),
-    ("Coupang", DESKTOP / "Coupang_v2",
-     ["docs/plans", "docs/adr", "docs/runbooks", "docs/architecture", "docs/specs",
-      "docs/reference"], True),
+    # ⚠️2026-09-11: 여기도 **0건**이었다. 레포가 `Desktop/북마트/bookmart` 로 옮겨졌는데
+    #   옛 자리에 `.dev/harness/tdd-order-log.jsonl` + `.vscode/` 만 든 **껍데기 폴더가
+    #   남아 있어** 경로가 존재하긴 했다. git 레포가 아니라 `git ls-files` 가 0을 냈고,
+    #   그래서 「폴더가 없다」는 신호조차 안 떴다. 🚨**껍데기가 조용한 0을 만든다.**
+    ("bookmart", DESKTOP / "북마트" / "bookmart",
+     [".dev/plans", ".dev/research", ".dev/maps"], True),
+    # ⚠️2026-09-11: 루트도 하위경로도 둘 다 낡아 있었다 — 이 소스가 **0건**을 내고 있었다.
+    #   ① 레포가 `Desktop/Coupang_v2` → **`Desktop/쿠팡/Coupang_v2`** 로 옮겨졌다
+    #   ② 문서가 `docs/plans|adr|runbooks|architecture|specs` → **`.dev/`** 로 옮겨졌다
+    #      (bookmart 와 같은 배치가 됐다). 6개 중 살아 있던 건 `docs/reference` 하나뿐.
+    #   ⛔ 「없는 경로라 0건」은 조용하다 — 소스를 더하거나 옮길 때 **개수를 세서 대조해라.**
+    ("Coupang", DESKTOP / "쿠팡" / "Coupang_v2",
+     [".dev/plans", ".dev/research", "docs/reference", "docs/learn"], True),
     ("claude", HOME / "claude", ["home/skills", "."], True),
     ("Obsidian", VAULT, ["20. Project", "30. Workspace", "60. Second Brain", "00. Index"], False),
 ]
@@ -56,7 +65,7 @@ SKIP_DIRS = {
 SKILL_FILES = {"SKILL.md", "README.md"}
 # 인덱스에서 **뺀 것**은 반드시 적는다. 안 적으면 "다 훑었다"로 읽힌다.
 EXCLUDED_NOTE = [
-    "Coupang `docs/memory` 215개 — Claude 자동 메모리(사람이 찾는 대상 아님)",
+    "Coupang `docs/_ai` 413개(memory 310) — Claude 자동 메모리(사람이 찾는 대상 아님)",
     "Obsidian `10. Planner`(일지 175) · `50. 공부` · `80. Archive` · `40. Inbox`",
     "bookmart `.dev/harness`(실행 산출물) · `.dev/mockups`",
 ]
