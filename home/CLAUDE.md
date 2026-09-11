@@ -63,18 +63,26 @@ Claude 는 설계·리뷰만 하고 승인된 plan 을 `.dev/plans/` 에 남긴�
 - 구현 전 **plain 한국어로 무엇을 할지 먼저 설명** — 프로젝트가 「ㄱㄱ」 승인을 요구하면 그때 코드.
 - 숫자·판정은 **재현 가능하게** — "N건"만 던지지 말고 조건·출처를 적는다.
 
-## 4. 이 PC (MSI) — 경로
+## 4. 이 PC — 경로  (`DESKTOP-IOLOFR8` · `C:\Users\user` · **실측 2026-09-11**)
 
 | 무엇 | 어디 |
 |---|---|
-| Bookmart | `C:\Users\MSI\Desktop\bookmart` · worktree `...\bookmart-wt\` |
-| Coupang v2 | `C:\Users\MSI\Desktop\Coupang_v2` · worktree `...\Coupang_v2-wt\` |
+| Bookmart | `C:\Users\user\Desktop\북마트\bookmart` · worktree `...\북마트\bookmart-wt\` |
+| Coupang v2 | `C:\Users\user\Desktop\쿠팡\Coupang_v2` · worktree `...\쿠팡\Coupang_v2-wt\` |
 | Obsidian (bookmart) | `G:\내 드라이브\Obsidian\30. Workspace\bookmart\` |
+| Obsidian (쿠팡 벤치마크) | `G:\내 드라이브\Obsidian\20. Project\쿠팡비즈니스\06-Benchmark\` |
 | 전역 스킬 | `~/.claude/skills/` — 지도는 `skills/README.md` |
-| Agent Monitor | `C:\Users\MSI\Desktop\tools\Claude-Code-Agent-Monitor` |
-| 통합 검색 (있을 때) | `python ~/claude/scripts/ci_index.py --search <낱말>` |
+| Agent Monitor | `C:\Users\user\Desktop\Claude-Code-Agent-Monitor` |
+| 통합 검색 | `python ~/claude/scripts/ci_index.py --search <낱말>` |
 
-⚠️ 옛 경로 `C:\Users\user\...` 가 문서·junction 에 남아 있으면 **MSI 경로로 고친다.**
+🚨 **이 표가 안 맞으면 추측하지 말고 실측해서 고쳐라 — 그리고 실측일을 같이 갱신해라.**
+2026-09-11 에 일곱 줄 중 **다섯 줄이 틀려 있었다.** `C:\Users\MSI\...` 로 적혀 있었는데
+그 사용자 폴더 자체가 이 PC 에 없고, 두 레포는 각각 `Desktop\북마트\`·`Desktop\쿠팡\`
+**폴더 안으로 옮겨진** 뒤였다.
+
+⛔ **틀린 경로는 조용하다.** 같은 날 `scripts/ci_index.py` 가 옛 자리를 가리켜 **4소스 중
+2개가 0건**을 내고 있었고(575→1,008건), 옛 자리에 **껍데기 폴더**가 남아 있어
+「폴더가 없다」는 신호조차 안 떴다. 경로를 옮겼으면 **가리키는 곳을 같이 세라.**
 
 ## 5. 전역 스킬 — 언제 무엇
 
