@@ -91,11 +91,10 @@ Claude 는 설계·리뷰만 하고 승인된 plan 을 `.dev/plans/` 에 남긴�
 | 레포 agent-ready 점수 | `ai-readiness-cartography` |
 | 하네스·환경 빈칸 | `harness-audit` |
 | 계획 구멍 찾기 | `grill-me` |
-| 코드 리뷰 | `code-review-7p` |
+| 코드 리뷰 | 내장 `/code-review` |
 | 보안 전체 스캔 | `owasp-security-scan` |
-| Supabase DB 진단 | `supabase-db-advisor` |
+| Supabase DB 진단 | `supabase-db-advisor-readonly` (bookmart 는 레포 `bookmart-db-advisor`) |
 | 토큰·비용 | `improve-token-efficiency` |
-| HTML 보고서 | `report` |
 
 ⛔ **forge(`arch-forge`·`backend-forge`·`frontend-forge`·`forge-loop`)는 지웠다** (2026-09-10).
 두 레포가 이미 걷은 것을 여기만 살아 있다고 광고하고 있었다 — Coupang_v2 08-07(<q>forge 판 그냥
