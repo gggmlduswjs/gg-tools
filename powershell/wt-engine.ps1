@@ -150,6 +150,8 @@ function Add-Provision([string]$wt, [string]$main) {
     if (-not (Test-Path $src)) { Write-Warning "$f 없음: $src"; continue }
     if (Test-Path $dst) { Write-Host "  $f 이미 있음 — 건너뜀"; continue }
     # ponytail: 복사. symlink 는 Windows 에서 admin/개발자모드 필요, .env 는 1KB 라 복사가 최소.
+    # 부모 폴더가 gitignore 라 worktree 에 없을 수 있다(.vscode\settings.json) — 먼저 만든다.
+    New-Item -ItemType Directory -Force (Split-Path $dst) | Out-Null
     Copy-Item $src $dst
     Write-Host "  $f → 복사"
   }
