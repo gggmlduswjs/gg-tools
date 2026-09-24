@@ -198,6 +198,12 @@ function Invoke-Start([string]$name, $extra) {
   if (-not (Test-Path $wt)) { New-Worktree $name $main $wt } else { Write-Host "worktree 재사용: $wt" }
   Add-Provision $wt $main
   Set-Location $wt
+  # 비대화형(서브에이전트·CI)이면 claude 를 띄우지 않는다 — stdin 이 TTY 가 아니면 claude 가
+  # --print 모드로 빠져 「입력 없음」 오류로 끝난다(2026-09-24). claude 와 같은 기준(stdin)으로 가른다.
+  # ⛔ [Environment]::UserInteractive 는 못 쓴다 — 에이전트 셸에서도 True 다(실측).
+  if ([Console]::IsInputRedirected) {
+    Write-Host "비대화형 — claude 는 띄우지 않음. 작업 경로: $wt" -ForegroundColor Green; return
+  }
   if (-not (Get-Command claude -ErrorAction SilentlyContinue)) {
     Write-Warning "claude CLI를 PATH에서 못 찾음 — 수동으로: cd `"$wt`"; claude"; return
   }
@@ -368,6 +374,29 @@ function Invoke-List {
 }
 
 # ── clean ────────────────────────────────────────────────────────────────────
+# 등록이 이미 빠진 폴더(worktree remove 가 추적 파일만 지우고 provision 사본을 남긴 경우 등).
+# 옛 clean 은 여기서 `git status` 가 실패해 거부했다(2026-09-24). provision 사본만 남았으면
+# 잃을 게 없으니 지우고, 그 밖의 파일이 있으면 목록을 보여 주고 거부한다(git 이 못 되살린다).
+function Remove-UnregisteredFolder([string]$wt, [string]$name, [string]$br) {
+  $root  = (Resolve-Path $wt).Path.TrimEnd('\')
+  $allow = @($script:Provision | ForEach-Object { ($_ -replace '/', '\').TrimStart('\') })
+  $other = @(Get-ChildItem $root -Recurse -File -Force -ErrorAction SilentlyContinue |
+             ForEach-Object { $_.FullName.Substring($root.Length + 1) } |
+             Where-Object { $allow -notcontains $_ })
+  if ($other) {
+    $other | Select-Object -First 10 | ForEach-Object { Write-Host "  $_" }
+    if ($other.Count -gt 10) { Write-Host "  … 외 $($other.Count - 10) 개" }
+    throw "worktree 등록 없음 + provision 밖 파일 $($other.Count) 개 — $wt`n  git 이 못 되살린다. 내용을 확인하고 직접 지워라"
+  }
+  Remove-LegacyLinks $root                                 # ★재귀 삭제 전에 링크부터
+  Remove-Item $root -Recurse -Force
+  Write-Host "제거됨(등록 없음 · provision 사본만 남아 있던 폴더): $root"
+  if (& git for-each-ref --format='%(refname)' "refs/heads/$br" 2>$null) {
+    if ((Invoke-GitShow @('branch', '-d', $br)) -ne 0) { Write-Host "  브랜치 $br 은 미머지라 남김 — 확실하면 git branch -D $br" }
+    else { Write-Host "  + 브랜치 $br" }
+  }
+}
+
 function Invoke-Clean($extra) {
   $extra = @($extra)
   $force = ($extra -contains '--force') -or ($extra -contains '-f')
@@ -381,6 +410,7 @@ function Invoke-Clean($extra) {
   # remove 하면 목록에서 사라지므로 **먼저** 잡아둔다.
   $entry = Get-WorktreeEntries | Where-Object { $_.path -eq ($wt -replace '\\', '/') } | Select-Object -First 1
   $br    = if ($entry -and $entry.branch) { $entry.branch } else { Get-BranchName $name }
+  if (-not $entry) { Remove-UnregisteredFolder $wt $name $br; return }
   # ★dirty 검사를 **아무것도 지우기 전에** — prune(아래)이 쓰는 것과 같은 판정을 그대로.
   #   prune 만 이 판정을 쓰고 clean 은 안 썼다. 12h 조용함 게이트는 여기 넣지 않는다 —
   #   clean 은 사람이 이름을 찍어 부르는 명시적 행동이고 'PR 머지 직후 회수'가 정상 흐름이다.
