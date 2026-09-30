@@ -32,11 +32,12 @@ user-invocable: true
 출력 경로는 레포에 `docs/`가 있으면 `docs/`, 없으면 `.claude/`. (사용자가 경로 지정 시 그 경로 우선.)
 
 ```bash
-python3 <이_스킬의_실제_설치경로>/scripts/scan.py <repo-path> \
+python3 <실제_스킬_경로>/scripts/scan.py <repo-path> \
   --json <scratchpad>/owasp-prescan.json --scope "<scope label>"
 ```
 
-- stdlib only (Python 3.10+), 미설치 스캐너(osv-scanner/gitleaks/semgrep)는 graceful skip + `coverage_notes`에 공백 기록.
+- Python 3.10+ 표준 라이브러리로 실행한다. **먼저 설치된 플러그인에서 이 스킬의 실제 디렉터리**를 찾고 그 안의 `scripts/scan.py` 경로를 사용한다. 프로젝트의 `.claude/skills/`에 플러그인 파일이 복사돼 있다고 가정하지 않는다.
+- 미설치 스캐너(osv-scanner/gitleaks/semgrep)는 graceful skip + `coverage_notes`에 공백 기록. Python 의존성 감사는 `npm audit`으로 대체할 수 없으므로 해당 도구를 별도로 사용하지 않았다면 커버리지 공백으로 보고한다.
 - 산출 JSON: `meta·tools·coverage_notes·supply_chain(npm audit)·secrets·leads{A01,A02,A04,A05,A08,A10}·summary`.
 - leads는 **단서**다(판정 아님). secrets의 `env_ref:true`는 placeholder/환경변수 참조 → 실제 비밀 아님.
 
@@ -66,14 +67,14 @@ python3 <이_스킬의_실제_설치경로>/scripts/scan.py <repo-path> \
 가드레일(대상 레포에서 확인된 규칙만):
 <CLAUDE.md/ARCHITECTURE/ADR 요약>
 
-점검 범위: <scope> (전체 레포면 src/·supabase/·next.config·middleware 중심)
+점검 범위: <scope> (전체 레포면 실제로 사용하는 언어·프레임워크·설정·인증·배포 경로 중심)
 
 규칙:
 - lead는 단서일 뿐이다. 코드를 직접 Read/Grep해 실제 의미로 확인하거나 기각하라. grep이 못 본 문제도 적극적으로 찾아라.
 - 추측 금지. 모든 finding은 파일:라인 + 코드 인용 근거가 있어야 한다.
 - coverage gap(미설치 도구로 못 본 영역)은 finding이 아니다 — 보고하지 마라(메인이 따로 처리).
 - 담당 카테고리에 문제가 없으면 그 카테고리 finding을 비우고 category_notes에 "확인된 위반 없음 + 근거"를 1줄로.
-- A03는 supply_chain(npm audit) critical/high advisory를 finding으로(file은 package.json, line 0). 트랜지티브/직접 의존 여부를 evidence에 명시.
+- A03는 실제 `package.json`이 있고 npm 감사가 성공한 경우에만 해당 `supply_chain` 결과를 확인한다. Python 등 타 생태계는 관련 감사 도구의 미실행 여부를 coverage gap에 적는다. 발견된 의존성의 직접/간접 여부를 근거에 명시한다.
 
 severity(보안 표준): critical · high · medium · low · info (루브릭의 가이드 따름).
 
@@ -113,7 +114,7 @@ severity(보안 표준): critical · high · medium · low · info (루브릭의
 - verified critical ≥ 1 → **Vulnerable** (level `red`)
 - critical 0, verified high ≥ 1 → **At Risk** (level `amber`)
 - high 0, medium ≥ 1 → **Hardening Needed** (level `amber`)
-- 그 외(검증된 위험 없음) → **Hardened** (level `green`)
+- 그 외(검증된 위험 없음) → **점검 범위 내 심각 위험 미확인** (level `green`; 검사하지 못한 축은 coverage gap으로 별도 강조, 전체 레포 안전 보증 금지)
 
 `assets/template.html`을 출력 경로로 복사한 뒤 **`<script id="scan-data">` JSON 블록만 교체**한다(HTML/CSS·렌더러는 건드리지 마라). 채울 필드:
 - `repo·scope·date(오늘)·branch·files_scanned`(pre-scan meta에서)
