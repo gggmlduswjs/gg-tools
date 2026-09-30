@@ -4,11 +4,34 @@
 
 이 plugin은 더 이상 디자인, 강의 변환, 회의록, 하네스 실행기, 로컬 PC 배선을 싣지 않는다. 프로젝트별 secret, MCP 인증, 운영 DB project ref는 plugin에 넣지 않고 각 repo/local 설정에 둔다.
 
+## 스킬 선택 기준 — 한 요청에 기본 한 종류만
+
+| 사용자가 원하는 일 | 우선 선택 | 중복 호출 방지 |
+|---|---|---|
+| 기능을 설계·구현·테스트·디버깅 | 외부 **Superpowers** | gg-skills에서 같은 범용 개발 과정을 다시 구현하지 않음 |
+| 운영 중 제품의 기존 기능 변경 | **existing-system-modernization + 프로젝트 규칙** | Superpowers를 대체하지 않고 기존 시스템 조사 항목만 추가 |
+| PRD·기능 명세·유저플로우·와이어프레임 **4종 묶음 HTML** | **product-spec-kit** | 일반 구현 계획은 Superpowers. 단순 PRD를 위해 4종 산출물 강제하지 않음 |
+| 운영 레포 전체 보안 진단 | 해당 레포의 **전용 보안 스킬** 우선. 없을 때 **owasp-security-scan** | 로컬 스킬이 있으면 공통 스킬 자동 중복 실행 금지 |
+| Supabase Advisor 진단 | 해당 레포의 **전용 DB 스킬** 우선. 없을 때 **supabase-db-advisor-readonly** | 인증·DB ref는 프로젝트가 소유; 둘 다 중복 호출하지 않음 |
+| 하네스 구성·노후화 진단 | **harness-audit** | 행동 회귀 측정이 필요할 때만 **harness-eval**을 추가 |
+| 보안·성능·관측성·데이터 안전의 광범위 종합 점검 | **production-readiness-5axis** | 전문 스킬의 결과를 재사용, 필요할 때만 미측정 축 실행 |
+| 개인 지식 위키 작업 | **wiki-ingest/lint/query** | `WIKI_SCHEMA.md`가 있는 위키 레포에서만 |
+
+> 프로젝트 전용 스킬 우선 규칙은 **라우팅 계약**이다. 프롬프트 문구만 고쳤다고 AI 자동 선택이 실제로 보장되는 것은 아니다. 사용 중인 Claude 세션에서 스킬 노출·선택과 테스트를 별도로 확인한다.
+
+### 설치·호출 검증 (새 PC·설정 변경 후)
+
+`bootstrap.ps1` 설치 대상은 `superpowers@claude-plugins-official`, `gg-skills@gg-tools`, `mattpocock-skills@mattpocock`, 외부 단일 스킬 `grill-me`다.
+
+로컬 상태 확인은 루트에서 `pwsh ./scripts/check_skill_wiring.ps1`을 실행한다. Bookmart/Coupang 경로를 제공하면 전용 Hook selftest도 확인한다. 이 검사는 설치 등록과 파일·지정 selftest만 확인하며 **실제 Claude/Codex 세션의 Skill 자동 호출까지 검증하는 것은 아니다.**
+
+`product-spec-kit`은 플러그인 내 HTML 에셋만으로 작성할 수 있게 되어 있으며 `artifact-design`은 **선택적**이다. 설치되지 않은 외부 스킬이 필수인 것처럼 호출하지 않는다.
+
 ## 계획 / 기존 시스템 현대화
 
 | 스킬 | 뭘 하나 |
 |---|---|
-| **product-spec-kit** | PRD·기능명세서·유저플로우·와이어프레임 세트를 만든다. **외부 `artifact-design` 스킬 의존** — 현재 bootstrap의 자동 설치 대상이 아니므로 사용 전 확인 |
+| **product-spec-kit** | PRD·기능명세·유저플로우·와이어프레임 4종 묶음 HTML을 만든다. 자체 에셋 사용; `artifact-design`은 선택 사항 |
 | **existing-system-modernization** | 이미 운영 중인 제품에서 Product Decision → Use Case → Current System Map → Legacy 분류 → Backend Impact → Architecture Escalation → Detox를 보존하고 Superpowers plan으로 넘긴다 |
 
 ⛔ **`grilling`·`domain-modeling` 은 여기 없다 — `mattpocock-skills` 플러그인이 정본이다.**
@@ -43,7 +66,7 @@
 
 | 스킬 | 뭘 하나 |
 |---|---|
-| **owasp-security-scan** | 레포 전체를 OWASP Top 10 2025 기준으로 스캔한다 |
+| **owasp-security-scan** | 레포 전용 보안 스킬이 없을 때 OWASP Top 10 2025 기준으로 점검. 일반 레포에 특정 프로젝트의 확장 기준을 강요하지 않는다 |
 
 ## 세컨드 브레인 위키 (LMN / agentic-eng 볼트)
 
