@@ -1,11 +1,13 @@
 ---
 name: supabase-db-advisor-readonly
-description: Supabase MCP get_advisors를 read-only로 실행해 Security/Performance advisor 결과를 분류하고, 적용은 마이그레이션/배포 파이프라인으로만 제안한다. "supabase advisor", "DB advisor", "DB 보안 점검", "DB 성능 점검", "RLS 점검", "인덱스 점검", "데이터 안전" 같은 요청에 트리거. 프로젝트별 DB ref와 인증은 repo의 .mcp.json/local 설정에 있어야 하며 플러그인에는 넣지 않는다.
+description: Supabase MCP get_advisors 읽기 전용 공통 점검. "DB advisor", "DB 보안·성능 점검", "RLS·인덱스 점검" 요청에 사용한다. 단 현재 레포에 전용 DB advisor 스킬(예 bookmart-db-advisor)이 있으면 그 스킬이 우선하며 공통 스킬은 보조 점검에만 쓴다. 프로젝트별 DB 인증·ref는 플러그인에 저장하지 않는다.
 ---
 
 # Supabase DB Advisor Read-Only
 
 이 스킬은 Supabase live DB 상태를 **진단만** 한다. 운영 DB 변경은 절대 직접 실행하지 않는다.
+
+**호출 우선순위:** 해당 레포에 `.claude/skills/*db-advisor*/SKILL.md` 등 전용 스킬이 있으면 먼저 읽고 전용 스킬을 실행한다. 이 공통 스킬을 중복 실행하지 않는다. 전용 스킬이 없을 때 이 공통 진단을 사용한다. 스킬 이름만으로 실제 운영 DB 연결의 안전성을 추정하지 않는다.
 
 ## 원칙
 
