@@ -1,10 +1,11 @@
-# OWASP Top 10 2025 — 점검 루브릭 (범용 + finsight 휴리스틱)
+# OWASP Top 10 2025 — 프로젝트 중립 점검 루브릭
 
-각 카테고리마다 **무엇인가 / 일반 점검 포인트 / finsight 휴리스틱 / severity 가이드**를 담는다.
-출처: https://owasp.org/Top10/2025/ · finsight 휴리스틱은 `CLAUDE.md`의 CRITICAL 규칙에서 유도.
+각 카테고리에서 **무엇인지 / 일반 점검 포인트 / 실제 코드 근거**를 확인한다. 업종·프레임워크 특정 전제를 모든 레포에 강요하지 않는다.
+참고: https://owasp.org/Top10/2025/ . 이전 특정 제품의 확장 기준은 `finsight-legacy.md`로 별도 보관한다.
 
 > 카테고리 에이전트는 **자기 담당 카테고리 섹션 + 해당 leads + 가드레일 문서**만 받아 점검한다.
 > leads는 grep이 찾은 *단서*일 뿐 판정이 아니다 — 코드를 직접 읽고 실제 의미로 확인/기각하라.
+> RLS·세션·결제·웹훅·민감정보 등 기술별 확인은 해당 기능이 **실제로 존재하고 정책에 적용될 때만** 검사한다. 특정 제품의 전제를 범용 기준으로 강요하지 않는다.
 
 severity 척도(보안 표준): **critical · high · medium · low · info**
 - critical: 인증 우회·미인증 데이터 노출·RCE·평문 비밀 유출 등 즉시 악용 가능
@@ -24,12 +25,6 @@ severity 척도(보안 표준): **critical · high · medium · low · info**
 - 기본 거부(deny-by-default)인가, 누락된 경로가 열려 있지 않은가.
 - 경로 탐색(`../`), 강제 브라우징, CORS 오설정으로 인한 인가 우회.
 
-**finsight 휴리스틱(CRITICAL):**
-- 모든 DB 테이블에 RLS `auth.uid() = user_id` 적용 — `supabase/migrations/*.sql`에서 `enable row level security` + 정책 존재 확인. 누락 테이블 = critical.
-- 서버는 `getUser()`/`getClaims()`로 검증하고 **`getSession()`을 인가에 쓰지 마라**(쿠키 위조 가능). authz 분기에 `getSession()`을 쓰면 high.
-- **Pro 게이팅은 서버측 DB 구독상태로만**(`status active AND current_period_end > now()`). 요청 body/헤더의 `tier`를 신뢰하면 high(유료 우회).
-- 체크아웃 `customerExternalId`는 클라 입력이 아니라 서버 세션 `getUser().id`로 강제 — 아니면 high(타인 명의 결제 귀속).
-- service_role 키 사용은 웹훅 모듈 한정 + `import "server-only"` 가드. 일반 라우트에서 service_role로 RLS 우회 시 critical.
 
 ---
 
@@ -43,11 +38,6 @@ severity 척도(보안 표준): **critical · high · medium · low · info**
 - CORS 와일드카드(`*`) + credentials, 열린 관리 엔드포인트.
 - TLS 검증 비활성화(`rejectUnauthorized:false`), 불필요한 기능/포트 노출.
 
-**finsight 휴리스틱(CRITICAL):**
-- `NEXT_PUBLIC_`에 비밀키 금지 — `NEXT_PUBLIC_*SECRET|KEY|TOKEN|SERVICE` 패턴은 critical 후보(번들에 박혀 영구 유출).
-- service_role 키는 `import "server-only"`로 가드되어 클라 번들에 포함 불가해야.
-- `next.config.ts`·미들웨어의 헤더/CORS 설정 점검.
-- Supabase 클라이언트가 anon 키만 클라에 노출하는지(service_role 노출 금지).
 
 ---
 
@@ -60,11 +50,6 @@ severity 척도(보안 표준): **critical · high · medium · low · info**
 - `postinstall` 등 빌드 스크립트의 임의 코드 실행, CI/배포 토큰 노출.
 - 의존성 무결성(SRI, lockfile 무결성).
 
-**finsight 휴리스틱:**
-- `scan.py`의 `supply_chain`(npm audit) 결과를 그대로 반영. critical/high advisory는 각각 finding으로.
-- 미설치 스캐너(osv-scanner/gitleaks/semgrep)로 인한 커버리지 공백을 finding이 아니라 **coverage gap**으로 정직히 표기.
-- 핵심 SDK(@anthropic-ai/sdk·@supabase/*·@polar-sh/*)가 최신/고정인지.
-- 결정론적 결과가 대부분이므로 LLM은 advisory 우선순위·실제 사용 여부(직접 의존 vs 트랜지티브)만 보강.
 
 ---
 
@@ -76,11 +61,6 @@ severity 척도(보안 표준): **critical · high · medium · low · info**
 - 예측 가능한 난수(`Math.random()`)를 토큰/세션/OTP에 사용.
 - 비밀번호 평문/약한 해싱, 솔트 부재.
 
-**finsight 휴리스틱(CRITICAL):**
-- 카드/계좌번호 등 **직접 식별자는 적재 시 마스킹**(전체 PAN 평문 저장 금지). 마스킹 로직이 적재 경로(`lib/` 파서→DB save)에 있는지, 전체값이 어디에도 평문으로 남지 않는지 확인. 위반 시 critical(PCI 성격).
-- dedup용 hash는 정규화 평문 기준으로 계산하되 **별도 컬럼**에 보관(원문 복원 불가).
-- 하드코딩된 API 키/토큰/비밀(`scan.py` secrets 결과) — placeholder/env-ref가 아닌 실제 값이면 critical.
-- at-rest는 Supabase 기본 암호화 + RLS, 컬럼 암호화(pgcrypto)는 Post-MVP(설계상 미적용은 finding 아님, 단 PAN 전체 보관이면 critical).
 
 ---
 
@@ -93,11 +73,6 @@ severity 척도(보안 표준): **critical · high · medium · low · info**
 - 커맨드: `child_process`/`exec`에 사용자 입력 결합.
 - `eval`/`new Function` 등 동적 코드 실행.
 
-**finsight 휴리스틱:**
-- Supabase 쿼리는 빌더(`.eq()`/`.filter()`)나 파라미터화 RPC를 쓰는지 — `.rpc()`/raw SQL에 문자열 보간 시 high/critical.
-- **프롬프트 인젝션:** CSV의 가맹점명 등 사용자 제어 텍스트가 Claude 프롬프트에 들어간다. Claude에는 마스킹된 거래 단위만 전달하고, 모델 출력은 structured output(`parsed_output`)으로만 신뢰 — 자유 텍스트 출력을 그대로 실행/렌더하지 않는지.
-- CSV 파싱이 결정론적 표준 파서 우선인지(LLM 폴백은 1회 확인 후 결정론).
-- 대시보드가 거래 텍스트를 렌더할 때 React 기본 이스케이프 의존 + `dangerouslySetInnerHTML` 부재 확인.
 
 ---
 
@@ -110,13 +85,6 @@ severity 척도(보안 표준): **critical · high · medium · low · info**
 - 신뢰 경계가 명확한가(클라이언트를 신뢰하는 설계인가).
 - 실패 시 안전한 상태로 떨어지는가(fail-safe).
 
-**finsight 휴리스틱(CRITICAL — 다수가 설계 규칙):**
-- **mock-first 레이어 경계:** `lib/`가 `services/`·외부 SDK를 import하지 않고 `types/` 포트에만 의존하는가(composition root에서 주입). 경계 붕괴는 보안 결합을 낳음 → medium.
-- 외부 클라이언트는 **호출 시점 지연 생성**(모듈 import 시 env 읽고 throw 금지) — 키 없는 build/test 방어.
-- **쿼터/캐시 설계:** `analyses` `unique(user_id, input_hash)` 캐시 + `ai_usage_daily` 원자 카운터로 tier별 일일 quota. 카운터가 원자적이지 않으면 race로 quota 우회(medium).
-- **저장 트랜잭션:** statements·transactions·analyses는 Postgres RPC 단일 트랜잭션(`save_statement_analysis`), 중간 실패 시 전체 rollback. 부분 저장 설계면 데이터 정합성 위험(medium).
-- **fail-safe:** Opus 초과/실패 시 규칙·통계 결과 보존 + AI 인사이트만 `unavailable` 격리. 미구독/쿼터소진 시 402가 아니라 200 + Free 결과 + `pro.status=locked|unavailable`.
-- 결제 흐름의 멱등성·서명검증이 설계에 내장되어 있는가(A08과 연계).
 
 ---
 
@@ -128,10 +96,6 @@ severity 척도(보안 표준): **critical · high · medium · low · info**
 - 자격증명 스터핑·무차별 대입 방어(레이트 리밋), 약한 비밀번호 정책.
 - OAuth: state/PKCE 검증, redirect_uri 화이트리스트, 토큰 검증.
 
-**finsight 휴리스틱(CRITICAL):**
-- Supabase 구글 OAuth — 콜백(`src/app/auth/callback/route.ts`)이 코드 교환·세션 설정을 안전하게 하는지, redirect 파라미터로 오픈 리다이렉트가 없는지.
-- 서버는 `getUser()`/`getClaims()`로 토큰을 **검증**(네트워크 검증)하고 `getSession()`(로컬 쿠키)을 신뢰하지 않는지 — A01과 공유.
-- 미들웨어가 보호 경로를 일관되게 가드하는지, 세션 갱신 흐름이 올바른지.
 
 ---
 
@@ -143,11 +107,6 @@ severity 척도(보안 표준): **critical · high · medium · low · info**
 - 웹훅·콜백의 출처 검증 부재.
 - CI/CD 파이프라인·배포 아티팩트 무결성.
 
-**finsight 휴리스틱(CRITICAL):**
-- **웹훅(Polar) 무결성:** raw body 기준 서명검증(`validateEvent`) + `processed_webhook_events.event_id` 선삽입 멱등 처리. 서명 검증 전 body 파싱/처리, 또는 멱등 누락 시 high(위조/재생 공격).
-- 서명 시크릿은 utf8 바이트로 정확히 비교(인코딩 함정 주의).
-- 외부에서 받은 이벤트로 구독상태를 갱신하기 전 서명·event_id를 확정하는지.
-- stale 이벤트(event_ts) 보호 — 오래된 이벤트로 상태 되돌림 방지.
 
 ---
 
@@ -159,10 +118,6 @@ severity 척도(보안 표준): **critical · high · medium · low · info**
 - 로그에 **민감정보(비밀·전체 PAN·토큰)가 새지 않는가** — 로깅 자체가 누출 벡터가 될 수 있음.
 - 이상 탐지·경보 경로가 있는가(없으면 medium/low, 설계 한계).
 
-**finsight 휴리스틱:**
-- 에러/실패 경로 로깅이 전체 식별자·비밀을 남기지 않는지(마스킹된 거래 단위만). 로그에 PAN/키가 찍히면 high.
-- Claude 호출 실패·quota 소진·웹훅 검증 실패가 관측 가능한지(Vercel 로그). 과도하면 안 되고, 과소하면 침해 탐지 불가.
-- MVP에서 중앙 경보 부재는 흔함 — finding보다는 정직한 한계로 표기(low/info), 단 **민감정보 로깅은 즉시 finding**.
 
 ---
 
@@ -175,12 +130,6 @@ severity 척도(보안 표준): **critical · high · medium · low · info**
 - 실패 시 **페일오픈**(에러인데 권한을 허용하는 방향으로 떨어짐).
 - 타임아웃·취소·부분 실패에서 자원/트랜잭션이 정합성을 유지하는가.
 
-**finsight 휴리스틱(CRITICAL):**
-- **fail-safe 방향:** Opus timeout(예: 30s)·실패 시 규칙·통계는 보존하고 AI 인사이트만 `unavailable`로 격리. 에러가 Pro 권한을 여는 방향이면 critical(페일오픈).
-- Opus structured-output `max_tokens` 잘림 → `parse`가 JSON SyntaxError throw → AI 인사이트 조용히 unavailable. 이 경로가 사용자 데이터를 깨지 않고 격리되는지.
-- 저장 RPC 중간 실패 시 전체 rollback(부분 저장 금지) — A06과 연계.
-- 에러 응답이 내부정보(스택·env·식별자)를 클라에 노출하지 않는지.
-- 빈 catch로 보안 검증(서명·권한) 실패를 삼키지 않는지.
 
 ---
 
