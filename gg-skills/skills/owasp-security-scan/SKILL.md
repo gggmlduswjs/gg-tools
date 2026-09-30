@@ -1,6 +1,6 @@
 ---
 name: owasp-security-scan
-description: 레포지토리를 OWASP Top 10 2025 기준으로 하이브리드(결정론적 도구 + 차원별 병렬 LLM 서브에이전트) 보안 스캔하고, 단일 HTML 대시보드 + 구조화 JSON으로 결과를 낸다. "보안 스캔", "보안 점검", "security scan", "security audit", "OWASP", "owasp top 10", "취약점 스캔/점검", "이 레포 안전한지 봐줘", "보안 감사" 같은 요청에 트리거. 범용 OWASP 점검에 finsight 스택 휴리스틱(RLS·Pro 서버측 게이팅·웹훅 서명검증·PAN 마스킹·service_role 가드)을 추가로 적용한다. 결과는 항상 깔끔한 기술 대시보드 HTML(Inter+JetBrains Mono, light surface)이며, 발견은 adversarial 검증을 통과한 것만 critical/high로 싣는다.
+description: 레포 전체를 OWASP Top 10 2025에 따라 코드 근거 중심으로 점검한다. "보안 감사", "OWASP 점검", "레포 전체 취약점 스캔" 요청에 사용한다. 단 레포에 전용 보안 감사 스킬(예 bookmart-security-scan)이 있으면 그것을 우선 실행하고 범용 스킬은 명시적으로 요구하거나 전용 스킬이 없는 경우에만 사용한다. 지원 언어/도구의 커버리지 공백을 명시하고 검증된 발견과 미검증 단서를 구분한다.
 user-invocable: true
 ---
 
@@ -12,7 +12,9 @@ user-invocable: true
 2. **LLM 레이어** — 카테고리 번들별 병렬 서브에이전트가 lead와 코드를 직접 읽어 판정. grep이 못 보는 의미·설계 결함을 잡는다.
 3. **검증 레이어** — critical/high finding을 skeptic 에이전트가 반박(다수결)해 false positive 제거.
 
-산출물: **단일 HTML 대시보드** + **구조화 JSON**. 범용 OWASP에 **finsight 휴리스틱**(`references/owasp-2025.md`)을 더한다.
+산출물: 사용 환경이 지원하면 **HTML 대시보드** + **구조화 JSON**. 범용 점검 기준은 `references/owasp-2025.md`다. `references/finsight-legacy.md`는 이전 특정 제품에 사용한 **선택적 역사 참고자료**이며 일반 레포에 자동 적용하지 않는다.
+
+**호출 우선순위:** 로컬 전용 보안 스킬이 있으면 그 스킬을 먼저 사용하고 이 스킬을 중복 실행하지 않는다. 동시에 둘을 실행하는 것은 사용자가 각각의 관점을 명시적으로 요청할 때만 허용한다.
 
 > 이 스킬은 **전체 레포 감사**가 기본이다. PR 변경분 리뷰는 `/review-code`(차원별·diff 기반)가 담당한다 — 역할이 다르다.
 
@@ -30,7 +32,7 @@ user-invocable: true
 출력 경로는 레포에 `docs/`가 있으면 `docs/`, 없으면 `.claude/`. (사용자가 경로 지정 시 그 경로 우선.)
 
 ```bash
-python3 .claude/skills/owasp-security-scan/scripts/scan.py <repo-path> \
+python3 <이_스킬의_실제_설치경로>/scripts/scan.py <repo-path> \
   --json <scratchpad>/owasp-prescan.json --scope "<scope label>"
 ```
 
@@ -39,7 +41,7 @@ python3 .claude/skills/owasp-security-scan/scripts/scan.py <repo-path> \
 - leads는 **단서**다(판정 아님). secrets의 `env_ref:true`는 placeholder/환경변수 참조 → 실제 비밀 아님.
 
 ## 2. 가드레일 문서 읽기
-`CLAUDE.md`, `docs/ARCHITECTURE.md`, `docs/ADR.md`를 읽어 finsight 보안 규칙 맥락을 확보한다(없으면 생략). 토큰이 과하면 보안 관련 CRITICAL 규칙 위주로 요약.
+`CLAUDE.md`, `docs/ARCHITECTURE.md`, `docs/ADR.md` 또는 프로젝트가 지정한 동등한 현재 문서를 읽어 **해당 레포의 보안·운영 규칙**만 추린다. 특정 프로젝트의 스택이나 정책을 다른 레포에 가정하지 않는다.
 
 ## 3. 카테고리 번들별 병렬 리뷰 (LLM 레이어)
 10개 카테고리를 **5개 번들**로 묶어 `Agent` 도구로 **병렬 소환**한다(한 메시지에 5개 Agent 호출). 각 에이전트는 **read-only**(파일을 수정하지 마라):
@@ -55,13 +57,13 @@ python3 .claude/skills/owasp-security-scan/scripts/scan.py <repo-path> \
 각 에이전트 프롬프트 템플릿(`<...>` 채워서 전달):
 
 ```
-너는 finsight 보안 감사관이다. OWASP Top 10 2025 중 <카테고리들>만 점검한다. read-only — 파일을 수정하지 마라.
+너는 현재 대상 레포의 보안 감사관이다. OWASP Top 10 2025 중 <카테고리들>만 점검한다. read-only — 파일을 수정하지 마라.
 
 먼저 다음을 읽어라:
-- 루브릭: .claude/skills/owasp-security-scan/references/owasp-2025.md (담당 카테고리 섹션 집중)
+- 루브릭: 현재 설치된 이 스킬의 `references/owasp-2025.md` (담당 카테고리 섹션 집중)
 - 결정론 pre-scan 결과: <prescan.json 경로> (특히 leads의 담당 카테고리, supply_chain, secrets)
 
-가드레일(finsight 규칙):
+가드레일(대상 레포에서 확인된 규칙만):
 <CLAUDE.md/ARCHITECTURE/ADR 요약>
 
 점검 범위: <scope> (전체 레포면 src/·supabase/·next.config·middleware 중심)
@@ -143,11 +145,12 @@ open <out>/owasp-security-scan.html   # macOS. 사용자가 "열지 마라" 하�
 - **leads를 그대로 finding으로 베끼기** — leads는 단서다. 반드시 코드로 확인. 다수는 정상(예: 정당한 service_role 웹훅 사용).
 - **coverage 공백을 숨기기** — osv/gitleaks/semgrep 미설치는 정직히 `gaps`에 표기. "전부 안전"으로 과장하지 마라.
 - **검증 생략하고 critical 남발** — critical/high는 adversarial 통과분만. 미검증을 critical로 싣지 마라.
-- **finsight 휴리스틱 누락** — 범용 OWASP만 보면 RLS·Pro 게이팅·웹훅 서명·PAN 마스킹 같은 핵심 위반을 놓친다. 루브릭의 finsight 섹션을 반드시 적용.
+- **프로젝트 전제 강요** — Django 레포에 Supabase RLS를, 결제 기능 없는 레포에 구독 등급을 요구하지 않는다. 대상 레포에 실제 존재하는 신뢰 경계와 보안 정책만 평가한다.
 - **secrets의 env_ref 오인** — `env_ref:true`는 placeholder/`process.env` 참조. 실제 유출 아님.
 - **diff 리뷰와 혼동** — 이건 전체 레포 감사다. PR 단위는 `/review-code`.
 
 ## Files
-- `references/owasp-2025.md` — OWASP Top 10 2025 × finsight 휴리스틱 루브릭(카테고리별 점검 기준 + severity 가이드)
+- `references/owasp-2025.md` — 프로젝트 중립 OWASP Top 10 2025 루브릭(카테고리별 공통 기준 + severity 가이드)
+- `references/finsight-legacy.md` — 과거 특정 제품 감사 기준 보존. 일반 레포에는 적용 금지.
 - `scripts/scan.py` — 결정론적 pre-scan(npm audit·시크릿·lead-grep → JSON). stdlib only
 - `assets/template.html` — 데이터 주도형 대시보드. `scan-data` JSON만 교체하면 렌더
