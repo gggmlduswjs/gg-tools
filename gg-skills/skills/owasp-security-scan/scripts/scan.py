@@ -156,9 +156,8 @@ def scan_secrets(repo, files):
 LEAD_PATTERNS = {
     "A01": [  # Broken Access Control
         (re.compile(r"\.getSession\("), "authz를 getSession()으로 판단하면 위반 — getUser()/getClaims() 검증인지 확인"),
-        (re.compile(r"\bservice_role\b|SERVICE_ROLE"), "service_role 사용처 — 웹훅 모듈 한정 + import \"server-only\" 가드인지 확인"),
-        (re.compile(r"customerExternalId"), "체크아웃 customerExternalId가 서버 세션 getUser().id로 강제되는지 확인(클라 입력 금지)"),
-        (re.compile(r"(req|request)\.(body|headers)[^\n]{0,40}\btier\b", re.I), "요청 body/헤더의 tier를 신뢰하면 Pro 게이팅 우회 — 서버측 DB 구독상태로만 판정해야"),
+        (re.compile(r"\bservice_role\b|SERVICE_ROLE"), "service_role 등 고권한 자격증명 사용 — 해당 프로젝트의 권한·서버측 비밀·신뢰 경계 정책을 확인"),
+        (re.compile(r"(req|request)\.(body|headers)[^\n]{0,40}\btier\b", re.I), "요청 값의 요금제·등급을 권한 판단에 그대로 사용하는지 확인(관련 기능이 있는 경우만)"),
     ],
     "A02": [  # Security Misconfiguration
         (re.compile(r"NEXT_PUBLIC_[A-Z0-9_]*(SECRET|KEY|TOKEN|SERVICE|PASSWORD|PRIVATE)"), "NEXT_PUBLIC_에 비밀 노출 의심 — 클라이언트 번들로 새어나감"),
@@ -178,20 +177,20 @@ LEAD_PATTERNS = {
     ],
     "A08": [  # Software or Data Integrity Failures
         (re.compile(r"validateEvent|constructEvent|verif(y|ied)Signature|webhookSecret|x-signature", re.I), "웹훅 서명검증 흔적(긍정 신호) — raw body 기준인지, 실패 시 거부하는지 확인"),
-        (re.compile(r"req\.body|request\.json\(\)"), "웹훅 라우트라면: 파싱 전 raw body 서명검증 + event_id 멱등 선삽입인지 확인"),
+        (re.compile(r"req\.body|request\.json\(\)"), "웹훅이라면 제공자 규약에 맞는 서명 검증 및 이벤트 재처리 방어 확인"),
     ],
     "A10": [  # Mishandling of Exceptional Conditions
         (re.compile(r"catch\s*\([^)]*\)\s*\{\s*\}"), "빈 catch — 예외 삼킴(부분 실패가 조용히 통과)"),
         (re.compile(r"(res|response)[^\n]{0,40}(err\.stack|error\.stack|err\.message|error\.message)", re.I), "에러 내부정보를 응답으로 노출 의심"),
-        (re.compile(r"timeout|AbortController|maxDuration"), "타임아웃/취소 처리 흔적 — Opus 초과 시 규칙결과 보존 + AI는 unavailable 격리인지 확인(긍정 신호)"),
+        (re.compile(r"timeout|AbortController|maxDuration"), "타임아웃/취소 처리 흔적 — 부분 실패가 안전하게 격리되며 권한·트랜잭션 실패가 열리지 않는지 확인"),
     ],
 }
 
 
-# Lead-grep targets first-party source only. Skipping these avoids matching the
-# CRITICAL-rule *descriptions* that live in skill prompts / phase docs as text.
+# Lead-grep targets first-party source only. Skipping these avoids matching
+# security-rule descriptions that live in prompts, docs, or evaluation fixtures.
 LEAD_SKIP_PREFIXES = (".claude/", "phases/", "docs/", "evals/", "node_modules/")
-LEAD_EXTS = (".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs", ".sql", ".sh")
+LEAD_EXTS = (".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs", ".py", ".sql", ".sh")
 
 
 def lead_grep(repo, files):
