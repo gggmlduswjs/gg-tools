@@ -8,7 +8,7 @@
 
 | 스킬 | 뭘 하나 |
 |---|---|
-| **product-spec-kit** | PRD·기능명세서·유저플로우·와이어프레임 세트를 만든다 |
+| **product-spec-kit** | PRD·기능명세서·유저플로우·와이어프레임 세트를 만든다. **외부 `artifact-design` 스킬 의존** — 현재 bootstrap의 자동 설치 대상이 아니므로 사용 전 확인 |
 | **existing-system-modernization** | 이미 운영 중인 제품에서 Product Decision → Use Case → Current System Map → Legacy 분류 → Backend Impact → Architecture Escalation → Detox를 보존하고 Superpowers plan으로 넘긴다 |
 
 ⛔ **`grilling`·`domain-modeling` 은 여기 없다 — `mattpocock-skills` 플러그인이 정본이다.**
@@ -54,11 +54,6 @@
 | **wiki-ingest** | raw 소스를 위키에 병합·교차링크·index/log 갱신 | `/wiki-ingest` |
 | **wiki-lint** | 모순·고아·깨진 링크·방치 stub 건강검진 | `/wiki-lint` |
 | **wiki-query** | 위키에 질문 → 인용 붙인 종합 답변 | `/wiki-query` |
-
-## 행동 (코딩 실수 방지)
-
-| 스킬 | 뭘 하나 |
-|---|---|
 
 ## 원칙
 
