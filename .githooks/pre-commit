@@ -37,7 +37,7 @@ fi
 #   · bookmart CI 에 넣어도 러너엔 ~/claude 가 없어 shim 이 exit 0 → 「통과」라는 거짓 신호
 # 그래서 엔진이 사는 이 레포에서, 엔진을 건드린 커밋에서만 돌린다.
 for _e in gg-skills/hooks/commit_sentinel gg-skills/hooks/guardrail \
-          gg-skills/hooks/memory_link gg-skills/hooks/stale_worktrees \
+          gg-skills/hooks/memory_link gg-skills/hooks/stale_worktrees \n          gg-skills/hooks/secret_guard gg-skills/hooks/tdd_guard \
           scripts/token_cost scripts/ci_index; do
   git diff --cached --name-only | grep -q "^$_e\.py$" || continue
   if ! python "$root/$_e.py" --selftest; then
