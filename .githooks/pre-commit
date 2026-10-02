@@ -16,7 +16,7 @@ fail=0
 # 개수가 아니라 이름으로 대조한다 — 하나 지우고 하나 더하면 개수는 그대로다.
 if [ -f "$root/gg-skills/skills/README.md" ]; then
   cd "$root/gg-skills/skills" || exit 0
-  have=$(ls -d */ 2>/dev/null | sed 's#/##' | sort)
+  have=$(ls -d */*/ 2>/dev/null | grep -v '^\(misc\|in-progress\|deprecated\)/' | sed 's#.*/\(.*\)/$#\1#' | sort)
   listed=$(grep -o '^| \*\*[A-Za-z0-9_-]*\*\*' README.md | sed 's/^| \*\*//; s/\*\*$//' | sort)
   missing=$(comm -23 <(echo "$have") <(echo "$listed"))
   stale=$(comm -13 <(echo "$have") <(echo "$listed"))

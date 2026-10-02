@@ -1,102 +1,105 @@
-# bootstrap.ps1 — gg-tools 한 번 실행으로 공용 Claude Code 환경을 설치/업데이트한다.
+# bootstrap.ps1 — gg-tools 한 번 실행으로 Claude Code 개발 환경을 설치/업데이트한다.
 #
-# 설치/업데이트 대상:
-#   1) Superpowers (Anthropic 공식 marketplace)
-#   2) gg-skills (이 repo의 gg-tools marketplace)
-#   3) RobMitt/grill-me-skill (원본 SKILL.md)
-#
-# 멱등 실행을 목표로 한다. 이미 있으면 update, 없으면 install 한다.
-param()
+# 설치 목록은 plugins.json 한 파일이다(플러그인, 단일 스킬, 세컨드 브레인 clone, npm 도구).
+# 멱등 실행: 이미 있으면 update, 없으면 install. core 플러그인 실패는 중단, 나머지는 경고만.
+# -DryRun: 아무것도 바꾸지 않고 실행할 명령만 출력한다.
+param([switch]$DryRun)
 
 $ErrorActionPreference = 'Stop'
-$repo = $PSScriptRoot
+$cfg = Get-Content -LiteralPath (Join-Path $PSScriptRoot 'plugins.json') -Raw -Encoding UTF8 | ConvertFrom-Json
 $dotClaude = Join-Path $env:USERPROFILE '.claude'
+$warnings = New-Object System.Collections.Generic.List[string]
 
-function Invoke-ClaudePlugin {
-  param(
-    [Parameter(Mandatory=$true)][string[]]$Args,
-    [switch]$AllowFailure
-  )
+function Invoke-Claude {
+  param([Parameter(Mandatory=$true)][string[]]$CliArgs)
+  if ($DryRun) { Write-Host "    [dry] claude $($CliArgs -join ' ')" -Fore DarkGray; return $true }
+  # Out-Host 필수: stdout 이 반환값에 섞이면 호출부의 if 가 실패를 성공으로 읽는다.
+  & claude @CliArgs | Out-Host
+  return ($LASTEXITCODE -eq 0)
+}
 
-  # Out-Host 필수: `& claude @Args` 의 stdout 이 파이프라인에 남으면 함수 반환값이
-  # [출력줄..., $false] 배열이 되고, PowerShell 은 비어있지 않은 배열을 항상 참으로 본다.
-  # 그러면 호출부의 `if ($updated)` 가 실패를 성공으로 읽어 install 을 통째로 건너뛴다.
-  & claude @Args | Out-Host
-  $code = $LASTEXITCODE
-  if ($code -ne 0 -and -not $AllowFailure) {
-    throw "claude $($Args -join ' ') 실패 (exit $code)"
-  }
-  return ($code -eq 0)
+function Ensure-Marketplace {
+  param($Mp)
+  Write-Host "  marketplace $($Mp.name)" -Fore DarkCyan
+  if (Invoke-Claude @('plugin','marketplace','update',$Mp.name)) { return $true }
+  return (Invoke-Claude @('plugin','marketplace','add',$Mp.repo,'--scope','user'))
 }
 
 function Ensure-Plugin {
-  param([Parameter(Mandatory=$true)][string]$PluginId)
-
-  Write-Host "  $PluginId" -Fore DarkCyan
-  $updated = Invoke-ClaudePlugin -Args @('plugin','update',$PluginId,'--scope','user') -AllowFailure
-  if ($updated) {
-    Write-Host "    [ok] 최신화" -Fore Green
-    return
-  }
-
-  Invoke-ClaudePlugin -Args @('plugin','install',$PluginId,'--scope','user') | Out-Null
-  Write-Host "    [ok] 설치" -Fore Green
+  param([string]$Id)
+  Write-Host "  $Id" -Fore DarkCyan
+  if (Invoke-Claude @('plugin','update',$Id,'--scope','user')) { return $true }
+  return (Invoke-Claude @('plugin','install',$Id,'--scope','user'))
 }
 
-if (-not (Get-Command claude -ErrorAction SilentlyContinue)) {
-  throw "Claude Code 명령 'claude'를 찾을 수 없다. Claude Code를 먼저 설치한 뒤 다시 실행해라."
+if (-not $DryRun -and -not (Get-Command claude -ErrorAction SilentlyContinue)) {
+  throw "Claude Code 명령 'claude'를 찾을 수 없다. Claude Code를 먼저 설치한 뒤 새 PowerShell 창에서 다시 실행해라."
 }
 
-Write-Host "`n== Claude Code plugins ==" -Fore Cyan
-
-# 1) Superpowers — 공식 Claude marketplace 정본.
-Ensure-Plugin 'superpowers@claude-plugins-official'
-
-# 2) gg-tools marketplace → gg-skills.
-#    2026-09-01 에 repo 를 claude→gg-tools 로 rename 했다. 옛 이름은 GitHub 리다이렉트로
-#    아직 붙지만, 옛 클론이 남은 PC 를 위해 fallback 을 남겨 둔다.
-$marketReady = Invoke-ClaudePlugin -Args @('plugin','marketplace','update','gg-tools') -AllowFailure
-if (-not $marketReady) {
-  # 옛 marketplace를 제거하면 그 marketplace에서 설치했던 legacy gg-harness도 같이 정리된다.
-  Invoke-ClaudePlugin -Args @('plugin','marketplace','remove','gg-harness') -AllowFailure | Out-Null
-
-  $marketReady = Invoke-ClaudePlugin -Args @('plugin','marketplace','add','gggmlduswjs/gg-tools','--scope','user') -AllowFailure
-  if (-not $marketReady) {
-    # 옛 이름 — GitHub 리다이렉트. 2026-09-01 rename 전 클론이 남은 PC 용 fallback.
-    $marketReady = Invoke-ClaudePlugin -Args @('plugin','marketplace','add','gggmlduswjs/claude','--scope','user') -AllowFailure
-  }
-  if (-not $marketReady) {
-    throw 'gg-tools marketplace 추가 실패. GitHub 인증/네트워크와 repo 이름을 확인해라.'
-  }
+Write-Host "`n== 마켓플레이스 ==" -Fore Cyan
+$failedMp = @{}
+foreach ($mp in $cfg.marketplaces) {
+  if (-not (Ensure-Marketplace $mp)) { $failedMp[$mp.name] = $true; $warnings.Add("marketplace 실패: $($mp.name) ($($mp.repo))") }
 }
-Ensure-Plugin 'gg-skills@gg-tools'
 
-# 2.5) mattpocock-skills — 업스트림 정본.
-#      gg-skills 는 domain-modeling·grilling 을 여기서 복사해 갖고 있었고 업스트림이
-#      갱신되는 동안 사본이 낡았다(2026-08-30: grilling 10줄 vs 업스트림 28줄).
-#      사본을 지웠으니 이 플러그인이 없으면 두 스킬을 잃는다 — 설치는 선택이 아니다.
-$mpReady = Invoke-ClaudePlugin -Args @('plugin','marketplace','update','mattpocock') -AllowFailure
-if (-not $mpReady) {
-  $mpReady = Invoke-ClaudePlugin -Args @('plugin','marketplace','add','mattpocock/skills','--scope','user') -AllowFailure
-  if (-not $mpReady) {
-    throw 'mattpocock marketplace 추가 실패. GitHub 인증/네트워크를 확인해라.'
-  }
+Write-Host "`n== 플러그인 ==" -Fore Cyan
+foreach ($pl in $cfg.plugins) {
+  $mpName = ($pl.id -split '@')[1]
+  $ok = (-not $failedMp.ContainsKey($mpName)) -and (Ensure-Plugin $pl.id)
+  if ($ok) { continue }
+  if ($pl.core) { throw "필수 플러그인 설치 실패: $($pl.id). GitHub 로그인(gh auth status)과 네트워크를 확인해라." }
+  $warnings.Add("플러그인 실패: $($pl.id)")
 }
-Ensure-Plugin 'mattpocock-skills@mattpocock'
 
-# 3) grill-me — RobMitt 원본은 marketplace plugin이 아니라 단일 Claude skill이다.
-Write-Host "`n== grill-me ==" -Fore Cyan
-$grillDir = Join-Path $dotClaude 'skills\grill-me'
-$grillFile = Join-Path $grillDir 'SKILL.md'
-New-Item -ItemType Directory -Force $grillDir | Out-Null
-$grillUrl = 'https://raw.githubusercontent.com/RobMitt/grill-me-skill/main/SKILL.md'
-try {
-  Invoke-WebRequest -Uri $grillUrl -OutFile $grillFile -UseBasicParsing
-  Write-Host "  [ok] RobMitt/grill-me-skill 최신 원본 → $grillFile" -Fore Green
-} catch {
-  throw "grill-me 동기화 실패: $($_.Exception.Message)"
+Write-Host "`n== 단일 스킬 ==" -Fore Cyan
+foreach ($sk in $cfg.skills) {
+  $dir = Join-Path $dotClaude "skills\$($sk.name)"
+  Write-Host "  $($sk.name) -> $dir" -Fore DarkCyan
+  if ($DryRun) { continue }
+  try {
+    New-Item -ItemType Directory -Force $dir | Out-Null
+    Invoke-WebRequest -Uri $sk.url -OutFile (Join-Path $dir 'SKILL.md') -UseBasicParsing
+  } catch { $warnings.Add("스킬 실패: $($sk.name) ($($_.Exception.Message))") }
+}
+
+Write-Host "`n== 스킬 저장소 ==" -Fore Cyan
+foreach ($sr in $cfg.skillRepos) {
+  $dir = Join-Path $dotClaude "skills\$($sr.name)"
+  Write-Host "  $($sr.name) <- $($sr.repo)" -Fore DarkCyan
+  if ($DryRun) { continue }
+  try {
+    if (Test-Path (Join-Path $dir '.git')) { git -C $dir pull --ff-only 2>&1 | Out-Host }
+    else { gh repo clone $sr.repo $dir 2>&1 | Out-Host }
+    if ($LASTEXITCODE -ne 0) { throw "git/gh 종료코드 $LASTEXITCODE" }
+  } catch { $warnings.Add("스킬 저장소 실패: $($sr.repo) ($($_.Exception.Message))") }
+}
+
+Write-Host "`n== 저장소 ==" -Fore Cyan
+foreach ($r in $cfg.repos) {
+  $dir = Join-Path $env:USERPROFILE $r.dir
+  Write-Host "  $($r.repo) -> $dir" -Fore DarkCyan
+  if ($DryRun) { continue }
+  if (Test-Path (Join-Path $dir '.git')) { Write-Host '    [ok] 이미 있음' -Fore Green; continue }
+  gh repo clone $r.repo $dir 2>&1 | Out-Host
+  if ($LASTEXITCODE -ne 0) { $warnings.Add("저장소 clone 실패: $($r.repo) — gh auth login 후 다시 실행") }
+}
+
+Write-Host "`n== npm 전역 도구 ==" -Fore Cyan
+foreach ($pkg in $cfg.npmGlobal) {
+  Write-Host "  $pkg" -Fore DarkCyan
+  if ($DryRun) { continue }
+  if (-not (Get-Command npm -ErrorAction SilentlyContinue)) { $warnings.Add("npm 없음: $pkg 건너뜀 (winget install --id OpenJS.NodeJS.LTS -e)"); continue }
+  npm install -g $pkg 2>&1 | Out-Host
+  if ($LASTEXITCODE -ne 0) { $warnings.Add("npm 설치 실패: $pkg") }
 }
 
 Write-Host "`n== 완료 ==" -Fore Cyan
-Write-Host 'Superpowers + gg-skills + grill-me 가 최신 상태다.' -Fore Green
-Write-Host '열려 있는 Claude Code 세션은 /reload-plugins 또는 새 세션에서 최신 plugin을 사용한다.' -Fore DarkGray
+foreach ($o in $cfg.optionalPlugins) { Write-Host "  선택 설치: $($o.id) — $($o.note)" -Fore DarkGray }
+if ($warnings.Count -gt 0) {
+  Write-Host "`n경고 $($warnings.Count)건:" -Fore Yellow
+  $warnings | ForEach-Object { Write-Host "  - $_" -Fore Yellow }
+  Write-Host '다시 실행해도 안전하다(이미 된 것은 건너뛴다).' -Fore DarkGray
+} else {
+  Write-Host '모두 최신 상태다.' -Fore Green
+}
+Write-Host '열려 있는 Claude Code 세션은 /reload-plugins 또는 새 세션에서 반영된다.' -Fore DarkGray
