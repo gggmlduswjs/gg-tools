@@ -161,24 +161,40 @@ def git(p, *args):
                           encoding="utf-8", errors="replace", timeout=300)
 
 
-def referenced(p, cands):
-    """{후보: 자신 외 추적 파일에서 파일명이 인용되면 True}. git grep -F -f 로 파일명 전체를 한 번에 묶음 검사.
-    ponytail: 파일명 일치라 흔한 이름(index.md)은 '참조됨'으로 과대 판정(안전 쪽). 경로 단위 정밀 검사는 필요할 때."""
+def referenced(p, cands, files):
+    """{후보: 자신 외 추적 파일이 경로로 인용하면 True}. git grep -F -f 한 번에 묶음 검사.
+    패턴 = 후보의 전체 경로 + 뒤 1~3단계 부분 경로(파일명 포함). 부분 경로는 추적 파일 전체에서 유일할 때만 쓴다
+    (index.html 처럼 이름이 여럿이면 foundations/colors.md 처럼 상위 폴더가 붙어 유일해질 때만 인정). 역슬래시 경로도 같이 찾는다.
+    ponytail: 부분 경로는 접두 경계를 보지 않는다(xfoo/a.md 도 foo/a.md 로 본다 = 참조됨 쪽 과대, 안전)."""
+    import collections
     import tempfile
-    names = {os.path.basename(f) for f in cands}
+    tails = collections.Counter(t for f in files for t in {"/".join(f.split("/")[-n:]) for n in (1, 2, 3)})
+    pats = collections.defaultdict(set)  # 패턴 -> 후보들
+    for f in cands:
+        parts = f.split("/")
+        for t in {f} | {"/".join(parts[-n:]) for n in (1, 2, 3)}:
+            if t == f or tails[t] == 1:
+                pats[t].add(f)
+                if "/" in t:
+                    pats[t.replace("/", "\\")].add(f)
     fd, pf = tempfile.mkstemp()
     os.close(fd)
     try:
         with open(pf, "w", encoding="utf-8", newline="\n") as fh:
-            fh.write("\n".join(sorted(names)) + "\n")
+            fh.write("\n".join(sorted(pats)) + "\n")
         out = git(p, "grep", "-F", "-o", "-I", "-f", pf).stdout
     finally:
         os.remove(pf)
-    hits = {}
+    ok = dict.fromkeys(cands, False)
     for line in out.splitlines():
         path, _, m = line.partition(":")
-        hits.setdefault(m, set()).add(path)
-    return {f: bool(hits.get(os.path.basename(f), set()) - {f}) for f in cands}
+        for f in pats.get(m, ()):
+            if f != path:
+                ok[f] = True
+        for f in pats.get(m.replace("\\", "/"), ()):
+            if f != path:
+                ok[f] = True
+    return ok
 
 
 def last_modified(p, cands):
@@ -209,7 +225,7 @@ def classify(p, deep=False):
     if not deep and len(cands) > DEEP_CAP:
         res["확인"] = cands
         return present, res, True
-    refs = referenced(p, cands) if cands else {}
+    refs = referenced(p, cands, files) if cands else {}
     mt = last_modified(p, [f for f in cands if not refs[f]]) if cands else {}
     now = time.time()
     for f in cands:
@@ -351,6 +367,8 @@ def selftest():
         assert in_structure("docs/adr/x.md") and not in_structure("docs/ADOPTION.md")
         assert doc_candidates(["docs/PRD.md", "docs/old.md", "a/README.md", ".claude/x.md", "tests/f.md", "README.md", "src/a.py", "n.txt"]) == ["docs/old.md", "n.txt"]
         if run(["git", "--version"])[0] == 0:
+            for k in [k for k in os.environ if k.startswith("GIT_")]:  # git hook 안에서 돌면 GIT_DIR 이 임시 repo 를 가린다
+                del os.environ[k]
             run(["git", "-C", d, "init", "-q"])
             open(os.path.join(d, "n.txt"), "w").write("x")
             open(os.path.join(d, "o.md"), "w").write("see n.txt")
@@ -358,6 +376,17 @@ def selftest():
             run(["git", "-C", d, "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qm", "t"])
             _, res, _ = classify(d)
             assert res["참조됨"] == ["n.txt"] and res["확인"] == ["o.md"], res
+            # 경로 기준: (a) 전체 경로 (b) 유일 basename (c) 중복 basename만 인용 -> 참조 아님
+            for q in ("docs/a/x.md", "docs/b/x.md", "docs/u.md"):
+                os.makedirs(os.path.dirname(os.path.join(d, q)), exist_ok=True)
+                open(os.path.join(d, q), "w").write("-")
+            open(os.path.join(d, "ref.txt"), "w").write("docs/a/x.md u.md x.md")
+            run(["git", "-C", d, "add", "docs", "ref.txt"])
+            files = [x for x in run(["git", "-C", d, "ls-files"])[1].split() if x]
+            r = referenced(d, ["docs/a/x.md", "docs/b/x.md", "docs/u.md"], files)
+            assert r == {"docs/a/x.md": True, "docs/b/x.md": False, "docs/u.md": True}, r
+            open(os.path.join(d, "ref.txt"), "w").write(r"docs\b\x.md only x.md")
+            assert referenced(d, ["docs/a/x.md", "docs/b/x.md"], files) == {"docs/a/x.md": False, "docs/b/x.md": True}
         assert "합계" in report([("PC", "x", OK, "")])
         reg, cfg = os.path.join(d, "reg.json"), os.path.join(d, "cfg.json")
         json.dump({"plugins": [{"id": "a@m1"}]}, open(cfg, "w"))
