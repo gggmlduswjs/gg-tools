@@ -1,0 +1,21 @@
+{
+  "name": "coupang-harness-evals",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "하네스 품질 회귀 게이트 — 프로젝트 비즈니스 로직이 아니라 에이전트 행동을 잰다",
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "eval": "tsx run.ts"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.116.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.7.0",
+    "vitest": "^2.1.0"
+  }
+}

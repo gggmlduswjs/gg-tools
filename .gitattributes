@@ -1,0 +1,3 @@
+# git 훅은 Git Bash 가 실행한다. CRLF 로 체크아웃되면 shebang 이 `/bin/bash\r` 이 되어
+# `bad interpreter` 로 죽는다 — Windows 기본값(core.autocrlf=true)이면 새 PC 에서 그렇게 된다.
+.githooks/** text eol=lf
