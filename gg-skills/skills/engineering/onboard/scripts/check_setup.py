@@ -5,6 +5,9 @@
 
   python check_setup.py                       # PC + sources.yaml 전체
   python check_setup.py --sources 경로.yaml   # 대상 목록 파일 지정
+  python check_setup.py --structure           # + 프로젝트 구조 점검(sources.yaml 에 structure_check: true 로도 켬)
+  python check_setup.py --structure --full    # 구조 밖 파일 전체 목록
+  python check_setup.py --structure --deep    # 참조 검사 상한(2000개) 해제
   python check_setup.py --selftest
 
 대상 목록 기본 위치: ~/.claude/onboard/sources.yaml (예시: ../config/sources.example.yaml)
@@ -98,6 +101,135 @@ def check_project(path):
             notes.append(f"CLAUDE.md {n}줄(200줄 이하 권장)"); status = WARN
     return [("프로젝트", path, status, "; ".join(notes) if notes else "틀 구성 확인")]
 
+# ---- 프로젝트 구조 점검(--structure): ai-dev-harness 틀 기준, git 추적 파일만, 읽기 전용 ----
+STD_FILES = ["CLAUDE.md", "_brain/WIKI_SCHEMA.md"] + ["docs/" + f for f in (
+    "PRD.md", "ROADMAP.md", "ARCHITECTURE.md", "ADR.md", "CONVENTIONS.md", "UI_GUIDE.md", "REFERENCES.md")]
+STD_DIRS = ["docs/" + d for d in ("adr", "domains", "features", "guides", "reference", "_archive")] + [
+    ".dev/plans", ".dev/research", "_brain/raw", "_brain/wiki"]
+DOC_EXT = {".md", ".mdx", ".txt", ".pdf", ".xlsx", ".xls", ".html", ".docx", ".doc", ".pptx", ".csv"}
+SKIP_DIRS = {".claude", ".codex", ".github", ".cursor", "node_modules", "vendor", "third_party", "tests", "test",
+             "__tests__", "fixtures", "fixture", "testdata", "dist", "build", "migrations", "static", "public", "templates"}
+SKIP_ROOT = {"README.md", "AGENTS.md", "CHANGELOG.md", "CONTRIBUTING.md", "LICENSE.md", "SECURITY.md", "requirements.txt", "robots.txt"}
+SKIP_BASE = {"CLAUDE.md", "README.md", "AGENTS.md", "requirements.txt", "robots.txt"}  # 하위 폴더의 이 이름들은 소스 옆 설명
+STALE_DAYS, TOP_N, DEEP_CAP = 180, 10, 2000
+
+
+def in_structure(f):
+    return f in STD_FILES or any(f.startswith(d + "/") for d in STD_DIRS)
+
+
+def doc_candidates(files):
+    """구조 밖 문서성 파일(제외 규칙 적용). docs/·.dev/·_brain/ 안의 기준 밖 파일도 후보다."""
+    out = []
+    for f in files:
+        parts = f.split("/")
+        if os.path.splitext(f)[1].lower() not in DOC_EXT or in_structure(f):
+            continue
+        if (len(parts) == 1 and f in SKIP_ROOT) or parts[-1] in SKIP_BASE and len(parts) > 1:
+            continue
+        if any(x in SKIP_DIRS for x in parts[:-1]):
+            continue
+        out.append(f)
+    return out
+
+
+def git(p, *args):
+    return subprocess.run(["git", "-C", p, "-c", "core.quotepath=off", *args], capture_output=True, text=True,
+                          encoding="utf-8", errors="replace", timeout=300)
+
+
+def referenced(p, cands):
+    """{후보: 자신 외 추적 파일에서 파일명이 인용되면 True}. git grep -F -f 로 파일명 전체를 한 번에 묶음 검사.
+    ponytail: 파일명 일치라 흔한 이름(index.md)은 '참조됨'으로 과대 판정(안전 쪽). 경로 단위 정밀 검사는 필요할 때."""
+    import tempfile
+    names = {os.path.basename(f) for f in cands}
+    fd, pf = tempfile.mkstemp()
+    os.close(fd)
+    try:
+        with open(pf, "w", encoding="utf-8", newline="\n") as fh:
+            fh.write("\n".join(sorted(names)) + "\n")
+        out = git(p, "grep", "-F", "-o", "-I", "-f", pf).stdout
+    finally:
+        os.remove(pf)
+    hits = {}
+    for line in out.splitlines():
+        path, _, m = line.partition(":")
+        hits.setdefault(m, set()).add(path)
+    return {f: bool(hits.get(os.path.basename(f), set()) - {f}) for f in cands}
+
+
+def last_modified(p, cands):
+    """{파일: 마지막 커밋 epoch}. git log 를 최신부터 훑다 후보를 다 찾으면 중단."""
+    left, out, ts = set(cands), {}, 0
+    proc = subprocess.Popen(["git", "-C", p, "-c", "core.quotepath=off", "log", "--name-only", "--no-renames", "--format=@%ct"],
+                            stdout=subprocess.PIPE, text=True, encoding="utf-8", errors="replace")
+    for line in proc.stdout:
+        line = line.rstrip("\n")
+        if line.startswith("@") and line[1:].isdigit():
+            ts = int(line[1:])
+        elif line in left:
+            out[line] = ts
+            left.discard(line)
+            if not left:
+                break
+    proc.kill()
+    return out
+
+
+def classify(p, deep=False):
+    """(기준 존재 {경로: bool}, {분류: [파일]}, 상한으로 검사 생략 여부)"""
+    import time
+    files = [f for f in git(p, "ls-files").stdout.splitlines() if f]
+    present = {x: any(f == x or f.startswith(x + "/") for f in files) for x in STD_FILES + STD_DIRS}
+    cands = doc_candidates(files)
+    res = {"참조됨": [], "낡은 후보": [], "확인": []}
+    if not deep and len(cands) > DEEP_CAP:
+        res["확인"] = cands
+        return present, res, True
+    refs = referenced(p, cands) if cands else {}
+    mt = last_modified(p, [f for f in cands if not refs[f]]) if cands else {}
+    now = time.time()
+    for f in cands:
+        if refs[f]:
+            res["참조됨"].append(f)
+        elif f in mt and now - mt[f] >= STALE_DAYS * 86400:
+            res["낡은 후보"].append(f)
+        else:
+            res["확인"].append(f)
+    return present, res, False
+
+
+def check_structure(path, full=False, deep=False):
+    """([표 행], 상세 텍스트). 읽기 전용: git ls-files·grep·log 만 쓴다."""
+    import time
+    p = expand(path)
+    if not os.path.isdir(os.path.join(p, ".git")):
+        return [("구조", path, WARN, "git 저장소 아님(건너뜀)")], ""
+    t0 = time.time()
+    present, res, capped = classify(p, deep)
+    miss = [k for k, v in present.items() if not v]
+    n = sum(len(v) for v in res.values())
+    lines = [f"### 구조 점검: {path} (로컬 체크아웃 기준 · git 추적 파일 · {time.time() - t0:.1f}초)",
+             f"기준 구조 있음 {len(present) - len(miss)}/{len(present)} · 없음: " + (", ".join(miss) if miss else "(없음)")]
+    if capped:
+        lines.append(f"후보 {n}개가 상한 {DEEP_CAP}개를 넘어 참조·날짜 검사를 생략했다(전부 '확인'). --deep 으로 전체 검사")
+    desc = {"참조됨": "구조 밖·참조됨(코드·훅·문서가 인용 — 함부로 이동 금지)",
+            "낡은 후보": f"구조 밖·낡은 후보(참조 0건 · {STALE_DAYS}일 이상 미수정)", "확인": "구조 밖·확인(그 외)"}
+    for k, v in res.items():
+        lines.append(f"- {desc[k]}: {len(v)}개")
+        if v:
+            dirs = {}
+            for f in v:
+                d = os.path.dirname(f) or "."
+                dirs[d] = dirs.get(d, 0) + 1
+            lines.append("  폴더별: " + ", ".join(f"{d}({c})" for d, c in sorted(dirs.items(), key=lambda x: -x[1])[:TOP_N]))
+            lines += [f"  · {f}" for f in (v if full else v[:TOP_N])]
+            if not full and len(v) > TOP_N:
+                lines.append(f"  … 외 {len(v) - TOP_N}개(--full 로 전체)")
+    lines.append("삭제·이동·수정은 하지 않는다. 승인 뒤에만.")
+    row = f"기준 없음 {len(miss)}개 · 구조 밖 문서 {n}개(참조됨 {len(res['참조됨'])} · 낡은 후보 {len(res['낡은 후보'])} · 확인 {len(res['확인'])})"
+    return [("구조", path, OK if not miss and not n else WARN, row)], "\n".join(lines)
+
 
 def check_wiki(path):
     p = expand(path)
@@ -146,10 +278,17 @@ def main(argv):
     if "--sources" in argv:
         src = expand(argv[argv.index("--sources") + 1])
     rows = check_pc()
+    structure, details = "--structure" in argv, []
     if os.path.exists(src):
-        cfg = parse_sources(open(src, encoding="utf-8").read())
+        text = open(src, encoding="utf-8").read()
+        cfg = parse_sources(text)
+        structure = structure or bool(re.search(r"^structure_check:\s*true", text, re.M | re.I))
         for p in cfg.get("projects", []):
             rows += check_project(p)
+            if structure:
+                r, detail = check_structure(p, "--full" in argv, "--deep" in argv)
+                rows += r
+                details.append(detail)
         for w in cfg.get("wikis", []):
             rows += check_wiki(w)
         for r in cfg.get("repos", []):
@@ -163,6 +302,9 @@ def main(argv):
     except Exception:
         pass
     print(report(rows))
+    for d in details:
+        print()
+        print(d)
 
 
 def selftest():
@@ -181,10 +323,20 @@ def selftest():
         open(os.path.join(d, "raw", "a.md"), "w").close()
         r = check_wiki(d)[0]
         assert r[2] == WARN and "1개" in r[3], r
+        assert in_structure("docs/adr/x.md") and not in_structure("docs/ADOPTION.md")
+        assert doc_candidates(["docs/PRD.md", "docs/old.md", "a/README.md", ".claude/x.md", "tests/f.md", "README.md", "src/a.py", "n.txt"]) == ["docs/old.md", "n.txt"]
+        if run(["git", "--version"])[0] == 0:
+            run(["git", "-C", d, "init", "-q"])
+            open(os.path.join(d, "n.txt"), "w").write("x")
+            open(os.path.join(d, "o.md"), "w").write("see n.txt")
+            run(["git", "-C", d, "add", "n.txt", "o.md"])
+            run(["git", "-C", d, "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qm", "t"])
+            _, res, _ = classify(d)
+            assert res["참조됨"] == ["n.txt"] and res["확인"] == ["o.md"], res
         assert "합계" in report([("PC", "x", OK, "")])
     finally:
         shutil.rmtree(d, ignore_errors=True)
-    print("onboard check_setup selftest OK (7 cases)")
+    print("onboard check_setup selftest OK")
 
 
 if __name__ == "__main__":

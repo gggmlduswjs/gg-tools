@@ -31,9 +31,12 @@ description: 새 PC나 새 프로젝트에서 개발 환경이 준비됐는지 �
 | 차단 엔진 실패 | gg-tools 위치가 `~/claude`인지 확인 |
 | 프로젝트에 CLAUDE.md·docs/PRD.md 없음 | harness 틀(`ai-dev-harness`)로 만든 프로젝트가 아니다. 새 프로젝트면 `docs/guides/0-start-project.md`, 기존 프로젝트면 `docs/ADOPTION.md` |
 | CLAUDE.md 200줄 초과 | 줄이거나 `docs/`로 링크 |
+| 구조 밖 문서 `낡은 후보`·`확인` | 목록을 사용자에게 보이고 정리 여부를 묻는다. `참조됨`은 건드리지 않는다. 이동·삭제는 승인 후 별도 작업 |
 | 위키 ingest 대기 | 위키 폴더에서 "위키에 넣어"(`wiki-ingest`) |
 | 위키 폴더 없음 | `gh repo clone <내 위키 저장소> ~/second-brain` 또는 `wiki-template`으로 새로 생성 |
 | 저장소 접근 불가 | 이름·로그인·권한 확인 |
+
+4-1. **프로젝트 구조 점검(선택).** 낡은 문서를 가려내고 싶을 때만 `python scripts/check_setup.py --structure`(또는 sources.yaml에 `structure_check: true`)를 돌린다. 프로젝트마다 `git ls-files` 기준으로 harness 틀(CLAUDE.md·docs/·.dev/·_brain/) 존재 여부를 보이고, 틀 밖 문서성 파일을 `참조됨`(코드·훅·문서가 파일명을 인용 — 이동 금지) / `낡은 후보`(참조 0건·180일 이상 미수정) / `확인`으로 나눠 개수·폴더별 집계·상위 10개를 보여 준다. `--full`은 전체 목록, `--deep`은 후보 2000개 초과 때 참조 검사 상한 해제. 파일명 일치로 보므로 흔한 이름은 `참조됨`으로 과대 판정될 수 있고, 결과는 로컬 체크아웃(브랜치) 기준이다. **보고만 하고 삭제·이동·수정은 하지 않는다.**
 
 5. **마무리.** 모두 `OK`면 "준비됨"과 함께 다음 할 일을 한 줄로 안내한다: 새 프로젝트면 PRD 작성(`0-start-project.md`), 기존 프로젝트면 하루 루프(`2-daily-loop-and-second-brain.md`), 어떤 스킬을 언제 쓸지는 `3-when-to-use-skills.md`.
 
