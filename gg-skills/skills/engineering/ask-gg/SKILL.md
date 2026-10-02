@@ -16,8 +16,10 @@ description: gg-skills 에 어떤 스킬이 있고 언제 무엇을 쓰는지 �
 | 성능·보안·데이터 안전·관측성 종합 점검 | `production-readiness-5axis` |
 | Core Web Vitals 측정과 개선 | `lighthouse-performance-loop` |
 | 에러 추적·분석·SEO | `observability-posthog-seo` |
-| 레포가 AI에게 읽기 좋은지 점수 | `ai-readiness-cartography` |
-| 토큰·비용 낭비 | `improve-token-efficiency` |
+| 레포가 AI에게 읽기 좋은지 점수 | `ai-readiness-cartography` (외부 `skills_repo`) |
+| 토큰·비용 낭비 | `improve-token-efficiency` (외부 `skills_repo`) |
+| 스킬 평가 사례 작성·실행 | `eval-writer` · `skill-evaluator` (외부 `skills_repo`) |
+| 여러 작업자에게 나눠 맡기기 | `workflow-orchestrator` (외부 `skills_repo`) |
 | 스킬·CLAUDE.md 회귀 측정 | `harness-eval` |
 | 위키에 넣기 / 묻기 / 점검 | `wiki-ingest` / `wiki-query` / `wiki-lint` (`WIKI_SCHEMA.md`가 있는 위키에서만) |
 

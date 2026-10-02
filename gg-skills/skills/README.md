@@ -12,6 +12,7 @@
 |---|---|---|
 | `engineering/` | 코드·제품 작업 | 예 |
 | `diagnostics/` | 진단·점수 | 예 |
+
 | `second-brain/` | 세컨드 브레인 위키 | 예 |
 | `misc/` | 드물게 쓰는 것 | 아니오 |
 | `in-progress/` | 시험 중 | 아니오 |
@@ -66,8 +67,6 @@
 
 | 스킬 | 뭘 하나 | 산출물 |
 |---|---|---|
-| **ai-readiness-cartography** | 레포가 agent-friendly 한지 100점 채점 | HTML 대시보드 + ROI 액션 |
-| **improve-token-efficiency** | Claude Code 세션 로그에서 토큰/컨텍스트 낭비를 찾는다 | HTML 대시보드 + 절감안 |
 
 ## Production readiness
 

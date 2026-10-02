@@ -30,9 +30,11 @@ pwsh ~/claude/bootstrap.ps1
 | 종류 | 내용 |
 |---|---|
 | 핵심 플러그인 | `superpowers`, `gg-skills`, `mattpocock-skills` (실패하면 중단) |
-| 보완 플러그인 | `ponytail`, `ui-ux-pro-max`, `claude-mem`, `task-observer`, `codex`, `headroom` |
+| 보완 플러그인 | `ponytail`, `ui-ux-pro-max`, `claude-mem`, `task-observer`, `codex`, `headroom`, `dev-browser` |
 | 보안 플러그인 | Trail of Bits 9종 (`differential-review`, `insecure-defaults`, `static-analysis` 등) |
 | 단일 스킬 | `grill-me`, `refactoring-ui` |
+| 스킬 모음 | `jha0313/skills_repo`(`ai-readiness-cartography`, `improve-token-efficiency`, `eval-writer`, `skill-evaluator`, `workflow-orchestrator`, `presentation_slides`)를 받아 `~/.claude/skills`에 연결. 라이선스 표기가 없어 이 저장소에 복사하지 않음. `skill-evaluator`는 `uv`와 Python 3.11+ 필요 |
+| 상태줄 | `ccstatusline`(설정이 없을 때만 적용) |
 | 저장소 | 세컨드 브레인 `second-brain`을 `~/second-brain`에 받음 (비공개, `gh auth login` 필요) |
 | npm 도구 | `lighthouse` (Node.js 필요) |
 | 선택 설치 | Cybersecurity Skills 818개 (설명이 컨텍스트에 많이 올라가 기본 제외) |

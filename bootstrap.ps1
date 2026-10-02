@@ -99,6 +99,46 @@ foreach ($pkg in $cfg.npmGlobal) {
   if ($LASTEXITCODE -ne 0) { $warnings.Add("npm 설치 실패: $pkg") }
 }
 
+# 여러 스킬이 든 저장소: ~\.claude\external\<이름> 에 받고, SKILL.md 가 있는 폴더마다
+# ~\.claude\skills\<스킬> 로 junction(관리자 권한 불필요)을 건다. 같은 이름이 이미 있으면 건드리지 않는다.
+Write-Host "`n== 스킬 모음 ==" -Fore Cyan
+foreach ($c in $cfg.skillCollections) {
+  $src = Join-Path $dotClaude "external\$($c.name)"
+  Write-Host "  $($c.repo) -> $src" -Fore DarkCyan
+  if ($DryRun) { continue }
+  try {
+    if (Test-Path (Join-Path $src '.git')) { git -C $src pull --ff-only 2>&1 | Out-Host }
+    else { New-Item -ItemType Directory -Force (Split-Path $src) | Out-Null; gh repo clone $c.repo $src 2>&1 | Out-Host }
+    if ($LASTEXITCODE -ne 0) { throw "git/gh 종료코드 $LASTEXITCODE" }
+    New-Item -ItemType Directory -Force (Join-Path $dotClaude 'skills') | Out-Null
+    foreach ($d in Get-ChildItem -LiteralPath $src -Directory | Where-Object { Test-Path (Join-Path $_.FullName 'SKILL.md') }) {
+      $link = Join-Path $dotClaude "skills\$($d.Name)"
+      if (Test-Path $link) {
+        if (-not ((Get-Item $link -Force).LinkType)) { $warnings.Add("같은 이름의 스킬이 이미 있어 건너뜀: $($d.Name)") }
+        continue
+      }
+      New-Item -ItemType Junction -Path $link -Target $d.FullName | Out-Null
+      Write-Host "    [ok] $($d.Name)" -Fore Green
+    }
+  } catch { $warnings.Add("스킬 모음 실패: $($c.repo) ($($_.Exception.Message))") }
+}
+
+# 상태줄: 이미 설정돼 있으면 건드리지 않는다. 없을 때만 넣고 원본은 .bak 으로 남긴다.
+Write-Host "`n== 상태줄 ==" -Fore Cyan
+$settingsPath = Join-Path $dotClaude 'settings.json'
+if ($cfg.statusLine -and -not $DryRun) {
+  try {
+    $st = if (Test-Path $settingsPath) { Get-Content -LiteralPath $settingsPath -Raw -Encoding UTF8 | ConvertFrom-Json } else { [pscustomobject]@{} }
+    if ($st.PSObject.Properties['statusLine']) { Write-Host '  이미 설정돼 있어 그대로 둔다.' -Fore Green }
+    else {
+      if (Test-Path $settingsPath) { Copy-Item -LiteralPath $settingsPath "$settingsPath.bak" -Force }
+      $st | Add-Member -NotePropertyName statusLine -NotePropertyValue $cfg.statusLine
+      $st | ConvertTo-Json -Depth 20 | Set-Content -LiteralPath $settingsPath -Encoding UTF8
+      Write-Host '  ccstatusline 설정 완료' -Fore Green
+    }
+  } catch { $warnings.Add("상태줄 설정 실패: $($_.Exception.Message)") }
+}
+
 Write-Host "`n== 완료 ==" -Fore Cyan
 foreach ($o in $cfg.optionalPlugins) { Write-Host "  선택 설치: $($o.id) — $($o.note)" -Fore DarkGray }
 if ($warnings.Count -gt 0) {

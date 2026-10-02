@@ -24,9 +24,7 @@
     "./skills/engineering/product-spec-kit",
     "./skills/engineering/production-readiness-5axis",
     "./skills/engineering/supabase-db-advisor-readonly",
-    "./skills/diagnostics/ai-readiness-cartography",
     "./skills/diagnostics/harness-eval",
-    "./skills/diagnostics/improve-token-efficiency",
     "./skills/second-brain/wiki-ingest",
     "./skills/second-brain/wiki-lint",
     "./skills/second-brain/wiki-query"
