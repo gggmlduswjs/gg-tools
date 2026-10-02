@@ -21,7 +21,8 @@ if (Test-Path $registry) {
 }
 
 Write-Host "== Claude Code 사용자 스코프 플러그인 ==" -ForegroundColor Cyan
-foreach ($id in @('superpowers@claude-plugins-official', 'gg-skills@gg-tools', 'mattpocock-skills@mattpocock')) {
+$cfg = Get-Content -LiteralPath (Join-Path $PSScriptRoot '../plugins.json') -Raw -Encoding UTF8 | ConvertFrom-Json
+foreach ($id in @($cfg.plugins | ForEach-Object { $_.id })) {
   $entry = if ($installed) { $installed.PSObject.Properties[$id] } else { $null }
   $scopes = @()
   if ($entry -and $entry.Value) { $scopes = @($entry.Value | ForEach-Object { $_.scope }) }

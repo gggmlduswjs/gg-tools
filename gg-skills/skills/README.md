@@ -4,6 +4,19 @@
 
 이 plugin은 더 이상 디자인, 강의 변환, 회의록, 하네스 실행기, 로컬 PC 배선을 싣지 않는다. 프로젝트별 secret, MCP 인증, 운영 DB project ref는 plugin에 넣지 않고 각 repo/local 설정에 둔다.
 
+## 폴더 분류
+
+스킬은 분류 폴더 아래에 둔다. 플러그인에 실리는 것은 `.claude-plugin/plugin.json`의 `skills` 배열에 적힌 스킬뿐이다. 새 스킬은 `in-progress/`에서 시작하고, 쓸 만해지면 분류 폴더로 옮겨 배열에 등록한다.
+
+| 폴더 | 담는 것 | 플러그인에 실림 |
+|---|---|---|
+| `engineering/` | 코드·제품 작업 | 예 |
+| `diagnostics/` | 진단·점수 | 예 |
+| `second-brain/` | 세컨드 브레인 위키 | 예 |
+| `misc/` | 드물게 쓰는 것 | 아니오 |
+| `in-progress/` | 시험 중 | 아니오 |
+| `deprecated/` | 더 안 쓰는 것 | 아니오 |
+
 ## 스킬 선택 기준 — 한 요청에 기본 한 종류만
 
 | 사용자가 원하는 일 | 우선 선택 | 중복 호출 방지 |
@@ -20,11 +33,17 @@
 
 ### 설치·호출 검증 (새 PC·설정 변경 후)
 
-`bootstrap.ps1` 설치 대상은 `superpowers@claude-plugins-official`, `gg-skills@gg-tools`, `mattpocock-skills@mattpocock`, 외부 단일 스킬 `grill-me`다.
+`bootstrap.ps1` 설치 대상은 루트 `plugins.json`에 적혀 있다.
 
 로컬 상태 확인은 루트에서 `pwsh ./scripts/check_skill_wiring.ps1`을 실행한다. Bookmart/Coupang 경로를 제공하면 전용 Hook selftest도 확인한다. 이 검사는 설치 등록과 파일·지정 selftest만 확인하며 **실제 Claude/Codex 세션의 Skill 자동 호출까지 검증하는 것은 아니다.**
 
 `product-spec-kit`은 플러그인 내 HTML 에셋만으로 작성할 수 있게 되어 있으며 `artifact-design`은 **선택적**이다. 설치되지 않은 외부 스킬이 필수인 것처럼 호출하지 않는다.
+
+## 라우터
+
+| 스킬 | 뭘 하나 |
+|---|---|
+| **ask-gg** | 어떤 스킬을 언제 쓰는지 안내한다. 스킬을 추가·삭제하면 이 스킬의 표도 같이 고친다 |
 
 ## 계획 / 기존 시스템 현대화
 

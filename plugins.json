@@ -1,0 +1,48 @@
+{
+  "_doc": "bootstrap.ps1 이 읽는 설치 목록. 도구를 더하거나 빼려면 이 파일만 고친다. core=true 인 플러그인이 실패하면 bootstrap 이 멈추고, 나머지는 경고만 남기고 계속한다.",
+  "marketplaces": [
+    { "name": "gg-tools", "repo": "gggmlduswjs/gg-tools" },
+    { "name": "mattpocock", "repo": "mattpocock/skills" },
+    { "name": "ponytail", "repo": "gggmlduswjs/ponytail" },
+    { "name": "ui-ux-pro-max-skill", "repo": "gggmlduswjs/ui-ux-pro-max-skill" },
+    { "name": "thedotmack", "repo": "thedotmack/claude-mem" },
+    { "name": "one-skill-to-rule-them-all", "repo": "rebelytics/one-skill-to-rule-them-all" },
+    { "name": "openai-codex", "repo": "gggmlduswjs/codex-plugin-cc" },
+    { "name": "headroom-marketplace", "repo": "headroomlabs-ai/headroom" },
+    { "name": "trailofbits", "repo": "trailofbits/skills" },
+    { "name": "anthropic-cybersecurity-skills", "repo": "mukul975/Anthropic-Cybersecurity-Skills" }
+  ],
+  "plugins": [
+    { "id": "superpowers@claude-plugins-official", "core": true },
+    { "id": "gg-skills@gg-tools", "core": true },
+    { "id": "mattpocock-skills@mattpocock", "core": true },
+    { "id": "ponytail@ponytail" },
+    { "id": "ui-ux-pro-max@ui-ux-pro-max-skill" },
+    { "id": "claude-mem@thedotmack" },
+    { "id": "task-observer@one-skill-to-rule-them-all" },
+    { "id": "codex@openai-codex" },
+    { "id": "headroom@headroom-marketplace" },
+    { "id": "differential-review@trailofbits" },
+    { "id": "insecure-defaults@trailofbits" },
+    { "id": "static-analysis@trailofbits" },
+    { "id": "supply-chain-risk-auditor@trailofbits" },
+    { "id": "agentic-actions-auditor@trailofbits" },
+    { "id": "fp-check@trailofbits" },
+    { "id": "sharp-edges@trailofbits" },
+    { "id": "variant-analysis@trailofbits" },
+    { "id": "audit-context-building@trailofbits" }
+  ],
+  "optionalPlugins": [
+    { "id": "cybersecurity-skills@anthropic-cybersecurity-skills", "note": "스킬 818개(커뮤니티 제작, 앤트로픽 공식 아님). 설명이 컨텍스트에 많이 올라가므로 필요할 때만: claude plugin install cybersecurity-skills@anthropic-cybersecurity-skills" }
+  ],
+  "skills": [
+    { "name": "grill-me", "url": "https://raw.githubusercontent.com/RobMitt/grill-me-skill/main/SKILL.md" }
+  ],
+  "skillRepos": [
+    { "name": "refactoring-ui", "repo": "s0xDk/refactoring-ui-skill" }
+  ],
+  "repos": [
+    { "name": "second-brain", "repo": "gggmlduswjs/second-brain", "dir": "second-brain", "private": true }
+  ],
+  "npmGlobal": [ "lighthouse" ]
+}
