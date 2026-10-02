@@ -4,7 +4,7 @@
 
 ## 폴더
 
-- `gg-skills/skills/<분류>/<스킬>/SKILL.md` — 분류: `engineering` · `diagnostics` (플러그인에 실림), `misc` · `in-progress` · `deprecated` (실리지 않음)
+- `gg-skills/skills/<분류>/<스킬>/SKILL.md` — 분류: `engineering` · `diagnostics` · `second-brain` (플러그인에 실림), `misc` · `in-progress` · `deprecated` (실리지 않음)
 - `gg-skills/.claude-plugin/plugin.json` — `skills` 배열에 적힌 스킬만 설치된다
 - `gg-skills/hooks/` — 위험 명령 차단 등 hook 엔진 (프로젝트 shim이 `~/claude/gg-skills/hooks/`를 부른다)
 - `plugins.json` — `bootstrap.ps1`이 설치할 목록. 도구 추가·삭제는 여기만

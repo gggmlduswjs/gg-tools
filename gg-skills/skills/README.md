@@ -12,6 +12,7 @@
 |---|---|---|
 | `engineering/` | 코드·제품 작업 | 예 |
 | `diagnostics/` | 진단·점수 | 예 |
+| `second-brain/` | 위키(세컨드 브레인) 운영 | 예 |
 
 | `misc/` | 드물게 쓰는 것 | 아니오 |
 | `in-progress/` | 시험 중 | 아니오 |
@@ -85,7 +86,13 @@
 
 ## 세컨드 브레인 위키
 
-`wiki-ingest` · `wiki-query` · `wiki-lint`는 외부 플러그인 `agentic-eng-toolkit`(jha0313/agentic-eng-plugin)이 제공한다. 라이선스 표기가 없어 복사하지 않고 `plugins.json`으로 설치한다. `WIKI_SCHEMA.md`가 있는 위키 레포에서만 쓴다.
+`WIKI_SCHEMA.md`가 있는 위키 폴더에서만 쓴다. 빈 틀은 [wiki-template](https://github.com/gggmlduswjs/wiki-template). 패턴의 출처는 Karpathy의 LLM Wiki 아이디어 문서이고, 스킬은 우리 스키마에 맞춰 새로 썼다.
+
+| 스킬 | 뭘 하나 |
+|---|---|
+| **wiki-ingest** | raw 원본을 읽어 출처 요약·개념·인물·도구 페이지로 통합하고 index/log를 갱신한다 |
+| **wiki-query** | 위키에 물어 `[[페이지]]` 인용이 달린 답을 받고, 가치 있는 답은 새 페이지로 저장할지 묻는다 |
+| **wiki-lint** | 깨진 링크·고아·모순·낡은 주장·빠진 개념·죽은 노드 후보를 점검해 보고한다(승인 후에만 수정) |
 
 ## 원칙
 
