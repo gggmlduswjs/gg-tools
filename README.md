@@ -57,7 +57,6 @@ gg-tools/
 │  ├─ hooks/                         # 공통 Hook 엔진 (프로젝트 shim이 호출)
 │  ├─ evals/
 │  └─ skills/
-├─ powershell/wt-engine.ps1          # worktree 공통 엔진
 └─ scripts/                          # 보조 스크립트
 ```
 
