@@ -1,0 +1,24 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "gg-tools",
+  "description": "공용 Claude Code 전문 도구 marketplace. 범용 개발 workflow는 Superpowers, 전문 보완 스킬은 gg-skills가 담당한다.",
+  "owner": {
+    "name": "gggmlduswjs",
+    "url": "https://github.com/gggmlduswjs"
+  },
+  "plugins": [
+    {
+      "name": "gg-skills",
+      "source": "./gg-skills",
+      "description": "기존 시스템 현대화·코드 리뷰·보안·성능·AI readiness·위키 등 공용 전문 스킬 묶음. 도메인 모델링·grilling 은 mattpocock-skills 가 정본이다.",
+      "category": "productivity",
+      "keywords": [
+        "skills",
+        "modernization",
+        "security",
+        "performance",
+        "ai-readiness"
+      ]
+    }
+  ]
+}
