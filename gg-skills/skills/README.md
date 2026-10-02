@@ -13,7 +13,6 @@
 | `engineering/` | 코드·제품 작업 | 예 |
 | `diagnostics/` | 진단·점수 | 예 |
 
-| `second-brain/` | 세컨드 브레인 위키 | 예 |
 | `misc/` | 드물게 쓰는 것 | 아니오 |
 | `in-progress/` | 시험 중 | 아니오 |
 | `deprecated/` | 더 안 쓰는 것 | 아니오 |
@@ -84,15 +83,9 @@
 |---|---|
 | **owasp-security-scan** | 레포 전용 보안 스킬이 없을 때 OWASP Top 10 2025 기준으로 점검. 일반 레포에 특정 프로젝트의 확장 기준을 강요하지 않는다 |
 
-## 세컨드 브레인 위키 (LMN / agentic-eng 볼트)
+## 세컨드 브레인 위키
 
-`WIKI_SCHEMA.md` + `wiki/`가 있는 위키 레포에서만 쓴다. 출처: [jha0313/agentic-eng-plugin](https://github.com/jha0313/agentic-eng-plugin).
-
-| 스킬 | 뭘 하나 | slash |
-|---|---|---|
-| **wiki-ingest** | raw 소스를 위키에 병합·교차링크·index/log 갱신 | `/wiki-ingest` |
-| **wiki-lint** | 모순·고아·깨진 링크·방치 stub 건강검진 | `/wiki-lint` |
-| **wiki-query** | 위키에 질문 → 인용 붙인 종합 답변 | `/wiki-query` |
+`wiki-ingest` · `wiki-query` · `wiki-lint`는 외부 플러그인 `agentic-eng-toolkit`(jha0313/agentic-eng-plugin)이 제공한다. 라이선스 표기가 없어 복사하지 않고 `plugins.json`으로 설치한다. `WIKI_SCHEMA.md`가 있는 위키 레포에서만 쓴다.
 
 ## 원칙
 

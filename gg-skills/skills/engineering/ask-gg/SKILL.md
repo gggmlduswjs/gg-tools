@@ -21,7 +21,7 @@ description: gg-skills 에 어떤 스킬이 있고 언제 무엇을 쓰는지 �
 | 스킬 평가 사례 작성·실행 | `eval-writer` · `skill-evaluator` (외부 `skills_repo`) |
 | 여러 작업자에게 나눠 맡기기 | `workflow-orchestrator` (외부 `skills_repo`) |
 | 스킬·CLAUDE.md 회귀 측정 | `harness-eval` |
-| 위키에 넣기 / 묻기 / 점검 | `wiki-ingest` / `wiki-query` / `wiki-lint` (`WIKI_SCHEMA.md`가 있는 위키에서만) |
+| 위키에 넣기 / 묻기 / 점검 | `wiki-ingest` / `wiki-query` / `wiki-lint` (외부 `agentic-eng-toolkit`, `WIKI_SCHEMA.md`가 있는 위키에서만) |
 
 다른 플러그인이 정본인 일: 설계·계획·TDD·디버깅은 Superpowers, 질문으로 계획 구멍 찾기와 도메인 모델링은 mattpocock-skills, 코드 리뷰는 내장 `/code-review`, 변경분 보안 리뷰는 내장 `/security-review`.
 

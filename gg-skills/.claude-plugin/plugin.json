@@ -24,9 +24,6 @@
     "./skills/engineering/product-spec-kit",
     "./skills/engineering/production-readiness-5axis",
     "./skills/engineering/supabase-db-advisor-readonly",
-    "./skills/diagnostics/harness-eval",
-    "./skills/second-brain/wiki-ingest",
-    "./skills/second-brain/wiki-lint",
-    "./skills/second-brain/wiki-query"
+    "./skills/diagnostics/harness-eval"
   ]
 }

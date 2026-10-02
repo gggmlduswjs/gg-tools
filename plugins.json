@@ -42,6 +42,10 @@
       "repo": "SawyerHood/dev-browser"
     },
     {
+      "name": "agentic-eng",
+      "repo": "jha0313/agentic-eng-plugin"
+    },
+    {
       "name": "anthropic-cybersecurity-skills",
       "repo": "mukul975/Anthropic-Cybersecurity-Skills"
     }
@@ -79,6 +83,9 @@
     },
     {
       "id": "dev-browser@dev-browser-marketplace"
+    },
+    {
+      "id": "agentic-eng-toolkit@agentic-eng"
     },
     {
       "id": "differential-review@trailofbits"
