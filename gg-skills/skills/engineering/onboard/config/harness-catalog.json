@@ -1,0 +1,1160 @@
+{
+ "schema_version": 1,
+ "_doc": "onboard --catalog 용 강의 적용 카탈로그(정책만 담는다). 상태·현재 상태 필드는 두지 않는다 — detect 가 실행할 때마다 계산한다. 읽기 전용: apply 는 사람이 읽을 안내(ref)일 뿐 스크립트가 설치·수정하지 않는다(전역 settings 자동 수정 금지). 필드: id(v2 카탈로그 ID) · title · type(install|guideline|knowledge) · scope(pc=PC 전역 한 번, project=sources.yaml 의 projects 마다) · source_wiki · detect[](배열 AND, 전부 충족해야 OK) · apply{kind,ref} · requires_approval · cost · priority(상|중|하) · hold(결정 대기 사유 문자열, 충족하면 OK, 미충족이면 '보류'로 확인 표시) · deferred(과함 항목 사유 문자열, 있으면 건너뜀) · retire_when(detect 와 같은 형식의 배열, 모두 충족하면 졸업해 건너뜀). detect kind: file_exists{path} · file_contains{path,pattern(정규식, 대소문자 무시)} · plugin_installed{id} · setting_present{file:user|project,key_path(점 표기),contains?} · manual{question}. 모르는 kind·형식 오류·manual 은 OK 가 아니라 '확인'. 경로: ~ 로 시작하면 홈 기준, 아니면 scope 가 project 면 프로젝트 루트·pc 면 홈 기준. 개인 절대 경로는 넣지 않는다. 포함 기준(1차): v2 카탈로그 103개 중 detect 가 자동·반자동이고 우선순위 상·중인 항목 + 틀 §7 로 보류할 과함 항목(deferred). 제외: plugins.json·check_pc·check_project·--structure·check_wiki 가 이미 판정하는 것, 이미 해소된 것(A4), detect 불가 지식·습관, 하 우선순위 detect 가능 항목(후속). 근거: second-brain 위키 강의 적용 카탈로그 v2(2026-10-03).",
+ "items": [
+  {
+   "id": "A7",
+   "title": "Karpathy 4원칙 (플러그인 andrej-karpathy-skills 또는 전역 CLAUDE.md 직접 삽입, 둘 중 하나로 정한다)",
+   "type": "guideline",
+   "scope": "pc",
+   "source_wiki": [
+    "lecture-5-1-claude-md-team",
+    "karpathy-guidelines"
+   ],
+   "detect": [
+    {
+     "kind": "plugin_installed",
+     "args": {
+      "id": "andrej-karpathy-skills@karpathy-skills"
+     }
+    }
+   ],
+   "apply": {
+    "kind": "pr_to_repo",
+    "ref": "안내: gg-tools plugins.json 에 등재할지 결정. 전역 CLAUDE.md 직접 삽입은 사용자가 직접 승인·반영"
+   },
+   "requires_approval": true,
+   "cost": "제3자 레포. ponytail 과 '단순함 우선'이 겹침",
+   "priority": "중",
+   "hold": null,
+   "deferred": null,
+   "retire_when": [
+    {
+     "kind": "file_contains",
+     "args": {
+      "path": "~/claude/plugins.json",
+      "pattern": "andrej-karpathy-skills"
+     }
+    }
+   ]
+  },
+  {
+   "id": "A9",
+   "title": "Permission Mode 기본값 명시 (⚠검증필요: bypass 에서 hook deny 동작은 미확인 — hook 이 있다고 bypass 를 허용하지 않는다)",
+   "type": "guideline",
+   "scope": "pc",
+   "source_wiki": [
+    "p1-ch01-claude-code-deepdive",
+    "clova-p1-ch05-guardrails"
+   ],
+   "detect": [
+    {
+     "kind": "setting_present",
+     "args": {
+      "file": "user",
+      "key_path": "permissions.defaultMode"
+     }
+    }
+   ],
+   "apply": {
+    "kind": "edit_settings",
+    "ref": "안내: ~/.claude/settings.json permissions.defaultMode 값 제안(사용자가 직접 설정). bypass 차단은 H2"
+   },
+   "requires_approval": true,
+   "cost": "공식 문서에 bypass 와 hook deny 의 관계 명시 없음",
+   "priority": "중",
+   "hold": null,
+   "deferred": null,
+   "retire_when": null
+  },
+  {
+   "id": "H2",
+   "title": "bypassPermissions 차단 (permissions.disableBypassPermissionsMode, ⚠검증필요: 공식은 관리형 설정 권장)",
+   "type": "install",
+   "scope": "pc",
+   "source_wiki": [
+    "clova-p1-ch05-guardrails",
+    "claude-code-extension-layers"
+   ],
+   "detect": [
+    {
+     "kind": "setting_present",
+     "args": {
+      "file": "user",
+      "key_path": "permissions.disableBypassPermissionsMode"
+     }
+    }
+   ],
+   "apply": {
+    "kind": "edit_settings",
+    "ref": "안내: 전역 settings 값 제안만. 스크립트는 전역 settings 를 수정하지 않는다 — 사용자 승인 후 직접"
+   },
+   "requires_approval": true,
+   "cost": "bypass 모드에서 PreToolUse hook deny 동작은 위키·공식 문서 모두 미확인",
+   "priority": "상",
+   "hold": null,
+   "deferred": null,
+   "retire_when": null
+  },
+  {
+   "id": "H6",
+   "title": "PC 전역 guardrail 배선 (전역 hooks 에 guardrail shim — 틀을 복사한 프로젝트만 보호되는 상태 해소)",
+   "type": "install",
+   "scope": "pc",
+   "source_wiki": [
+    "harness-engineering-six-axes",
+    "team-plugin-distribution"
+   ],
+   "detect": [
+    {
+     "kind": "setting_present",
+     "args": {
+      "file": "user",
+      "key_path": "hooks",
+      "contains": "guardrail"
+     }
+    }
+   ],
+   "apply": {
+    "kind": "edit_settings",
+    "ref": "안내: 전역 vs 프로젝트 shim 결정 뒤 사용자가 직접 배선. 엔진 없는 PC 에서 exit 2 로 막히지 않게 shim 경유(gg-skills/hooks/README.md)"
+   },
+   "requires_approval": true,
+   "cost": "틀 밖 프로젝트(쿠팡·북마트 등)가 자기 shim 을 가지면 이중 배선 여부 미확인",
+   "priority": "상",
+   "hold": "전역 vs 프로젝트 shim 결정 대기(사용자 결정)",
+   "deferred": null,
+   "retire_when": null
+  },
+  {
+   "id": "H3",
+   "title": "Contain: 격리 수단(sandbox·worktree·컨테이너)과 자율성 수준을 짝지음 — settings 의 sandbox",
+   "type": "guideline",
+   "scope": "pc",
+   "source_wiki": [
+    "clova-p1-ch05-guardrails",
+    "harness-engineering-six-axes"
+   ],
+   "detect": [
+    {
+     "kind": "setting_present",
+     "args": {
+      "file": "user",
+      "key_path": "sandbox"
+     }
+    }
+   ],
+   "apply": {
+    "kind": "read_doc",
+    "ref": "안내: 높은 자율성=강한 격리. sandbox 활성화는 사용자 선택"
+   },
+   "requires_approval": true,
+   "cost": "sandbox 지원 환경·성능 영향 미확인",
+   "priority": "중",
+   "hold": null,
+   "deferred": null,
+   "retire_when": null
+  },
+  {
+   "id": "A10",
+   "title": "위험 명령 차단 hook (guardrail shim + settings 배선, Prevent 층). 엔진 selftest 는 PC 점검이 판정",
+   "type": "install",
+   "scope": "project",
+   "source_wiki": [
+    "p1-ch05-practical-techniques",
+    "harness-engineering-six-axes"
+   ],
+   "detect": [
+    {
+     "kind": "file_exists",
+     "args": {
+      "path": ".claude/hooks/guardrail.py"
+     }
+    },
+    {
+     "kind": "file_contains",
+     "args": {
+      "path": ".claude/settings.json",
+      "pattern": "guardrail"
+     }
+    }
+   ],
+   "apply": {
+    "kind": "copy_from_template",
+    "ref": "ai-dev-harness 의 .claude/hooks/guardrail.py 와 settings.json PreToolUse(Bash|PowerShell) 항목"
+   },
+   "requires_approval": true,
+   "cost": "gg-tools 가 ~/claude 에 있어야 함(없으면 확인 요청으로 동작)",
+   "priority": "상",
+   "hold": null,
+   "deferred": null,
+   "retire_when": null
+  },
+  {
+   "id": "A11",
+   "title": "시크릿 가드 배선 (Write|Edit|MultiEdit 에 키·토큰이 박히면 확인 요청)",
+   "type": "install",
+   "scope": "project",
+   "source_wiki": [
+    "p1-ch05-practical-techniques",
+    "clova-p1-ch05-guardrails"
+   ],
+   "detect": [
+    {
+     "kind": "file_contains",
+     "args": {
+      "path": ".claude/settings.json",
+      "pattern": "secret_guard"
+     }
+    }
+   ],
+   "apply": {
+    "kind": "pr_to_repo",
+    "ref": "settings.json PreToolUse shim 추가 — gg-skills/hooks/README.md 의 '엔진 없는 PC 에서 exit 2' 경고 준수"
+   },
+   "requires_approval": true,
+   "cost": "엔진은 ask 방식(오탐이면 가드를 끈다는 설계)",
+   "priority": "상",
+   "hold": null,
+   "deferred": null,
+   "retire_when": null
+  },
+  {
+   "id": "H1",
+   "title": "permissions.deny 규칙 (.env·비밀 파일 읽기, 비가역 삭제, 프로덕션 접근)",
+   "type": "install",
+   "scope": "project",
+   "source_wiki": [
+    "clova-p1-ch05-guardrails",
+    "harness-engineering-six-axes",
+    "claude-code-extension-layers"
+   ],
+   "detect": [
+    {
+     "kind": "setting_present",
+     "args": {
+      "file": "project",
+      "key_path": "permissions.deny"
+     }
+    }
+   ],
+   "apply": {
+    "kind": "edit_settings",
+    "ref": "안내: 프로젝트 .claude/settings.json 에 deny 목록 제안. 규칙 문법은 공식 permissions 문서로 확인 후 사용자 승인으로 반영(전역 settings 는 건드리지 않는다)"
+   },
+   "requires_approval": true,
+   "cost": "Bash deny 는 명령 텍스트 매칭이라 보안 경계가 아님(Contain 필요). Read 도구 규칙 문법은 미확인",
+   "priority": "상",
+   "hold": null,
+   "deferred": null,
+   "retire_when": null
+  },
+  {
+   "id": "B2",
+   "title": "CLAUDE.md 200줄 점검 (SessionStart hook + PR Action + 공용 스크립트)",
+   "type": "install",
+   "scope": "project",
+   "source_wiki": [
+    "lecture-5-1-claude-md-team",
+    "p0-ch02-ai-native-engineer"
+   ],
+   "detect": [
+    {
+     "kind": "file_exists",
+     "args": {
+      "path": "scripts/check-claude-md.py"
+     }
+    },
+    {
+     "kind": "file_exists",
+     "args": {
+      "path": ".claude/hooks/claude-md-check.py"
+     }
+    },
+    {
+     "kind": "file_exists",
+     "args": {
+      "path": ".github/workflows/claude-md-check.yml"
+     }
+    },
+    {
+     "kind": "file_contains",
+     "args": {
+      "path": ".claude/settings.json",
+      "pattern": "claude-md-check"
+     }
+    }
+   ],
+   "apply": {
+    "kind": "copy_from_template",
+    "ref": "ai-dev-harness 의 4개 파일(PR #13) 복사 PR"
+   },
+   "requires_approval": true,
+   "cost": "LLM·API 키·비용 없음",
+   "priority": "상",
+   "hold": null,
+   "deferred": null,
+   "retire_when": null
+  },
+  {
+   "id": "B3",
+   "title": "PR 템플릿 'CLAUDE.md 업데이트 필요?' + 완료 4단계·검증 결과 칸",
+   "type": "install",
+   "scope": "project",
+   "source_wiki": [
+    "lecture-5-1-claude-md-team",
+    "ai-code-review-automation"
+   ],
+   "detect": [
+    {
+     "kind": "file_exists",
+     "args": {
+      "path": ".github/PULL_REQUEST_TEMPLATE.md"
+     }
+    },
+    {
+     "kind": "file_contains",
+     "args": {
+      "path": ".github/PULL_REQUEST_TEMPLATE.md",
+      "pattern": "CLAUDE\\.md 업데이트"
+     }
+    }
+   ],
+   "apply": {
+    "kind": "copy_from_template",
+    "ref": "ai-dev-harness/.github/PULL_REQUEST_TEMPLATE.md 복사. 기존 템플릿이 있으면 체크 한 줄만 추가"
+   },
+   "requires_approval": true,
+   "cost": "비용 없음",
+   "priority": "상",
+   "hold": null,
+   "deferred": null,
+   "retire_when": null
+  },
+  {
+   "id": "B4",
+   "title": "CLAUDE.md 운영 가이드 (계층·3원칙·트리거 표·improver 사용법)",
+   "type": "guideline",
+   "scope": "project",
+   "source_wiki": [
+    "claude-md-team-asset",
+    "lecture-5-1-claude-md-team"
+   ],
+   "detect": [
+    {
+     "kind": "file_exists",
+     "args": {
+      "path": "docs/guides/5-claude-md-ops.md"
+     }
+    }
+   ],
+   "apply": {
+    "kind": "copy_from_template",
+    "ref": "ai-dev-harness/docs/guides/5-claude-md-ops.md"
+   },
+   "requires_approval": true,
+   "cost": "비용 없음",
+   "priority": "중",
+   "hold": null,
+   "deferred": null,
+   "retire_when": null
+  },
+  {
+   "id": "B7",
+   "title": "superpowers 산출물 저장 위치 규칙 (설계서 docs/features, 계획 .dev/plans, 장부 .superpowers 제외)",
+   "type": "guideline",
+   "scope": "project",
+   "source_wiki": [
+    "lecture-harness-vs-superpowers"
+   ],
+   "detect": [
+    {
+     "kind": "file_contains",
+     "args": {
+      "path": "CLAUDE.md",
+      "pattern": "\\.superpowers"
+     }
+    },
+    {
+     "kind": "file_contains",
+     "args": {
+      "path": ".gitignore",
+      "pattern": "\\.superpowers"
+     }
+    }
+   ],
+   "apply": {
+    "kind": "copy_from_template",
+    "ref": "ai-dev-harness 의 CLAUDE.md 표와 .gitignore 항목"
+   },
+   "requires_approval": true,
+   "cost": "안 지키면 정본이 둘이 됨",
+   "priority": "상",
+   "hold": null,
+   "deferred": null,
+   "retire_when": null
+  },
+  {
+   "id": "B8",
+   "title": ".env 비커밋 + .env.example 만 커밋",
+   "type": "install",
+   "scope": "project",
+   "source_wiki": [
+    "p2-ch01-fullstack-saas-finsight"
+   ],
+   "detect": [
+    {
+     "kind": "file_contains",
+     "args": {
+      "path": ".gitignore",
+      "pattern": "^\\.env\\b"
+     }
+    },
+    {
+     "kind": "file_contains",
+     "args": {
+      "path": ".gitignore",
+      "pattern": "^!\\.env\\.example"
+     }
+    }
+   ],
+   "apply": {
+    "kind": "copy_from_template",
+    "ref": "ai-dev-harness/.gitignore 항목"
+   },
+   "requires_approval": true,
+   "cost": "비용 없음",
+   "priority": "중",
+   "hold": null,
+   "deferred": null,
+   "retire_when": null
+  },
+  {
+   "id": "B9",
+   "title": "운영 안전 섹션 채우기 (운영 DB 쓰기·마이그레이션·돈·삭제·외부 API·배포의 허용/금지)",
+   "type": "guideline",
+   "scope": "project",
+   "source_wiki": [
+    "harness-engineering-six-axes",
+    "production-readiness-five-axes",
+    "clova-p1-ch05-guardrails"
+   ],
+   "detect": [
+    {
+     "kind": "file_exists",
+     "args": {
+      "path": "CLAUDE.md"
+     }
+    },
+    {
+     "kind": "manual",
+     "args": {
+      "question": "CLAUDE.md '운영 안전' 섹션에 양식 문구가 아닌 구체 규칙 줄(허용/금지)이 있는가?"
+     }
+    }
+   ],
+   "apply": {
+    "kind": "read_doc",
+    "ref": "안내: 사람이 작성. 위험 3범주(되돌릴 수 없는 것·민감 데이터 유출·프로덕션 접근)를 질문 목록으로 쓴다. 쓴 규칙은 H1·A10 으로 강제"
+   },
+   "requires_approval": true,
+   "cost": "CLAUDE.md 는 지시서일 뿐 강제력이 없다",
+   "priority": "상",
+   "hold": null,
+   "deferred": null,
+   "retire_when": null
+  },
+  {
+   "id": "B10",
+   "title": "검증 명령 섹션 채우기 (단위·통합·E2E·린트·빌드)",
+   "type": "guideline",
+   "scope": "project",
+   "source_wiki": [
+    "agentic-engineering-five-pillars",
+    "harness-engineering-six-axes"
+   ],
+   "detect": [
+    {
+     "kind": "file_exists",
+     "args": {
+      "path": "CLAUDE.md"
+     }
+    },
+    {
+     "kind": "manual",
+     "args": {
+      "question": "CLAUDE.md '검증 명령' 섹션의 5개 칸이 빈 값이 아닌가?"
+     }
+    }
+   ],
+   "apply": {
+    "kind": "read_doc",
+    "ref": "안내: 스택을 읽어 명령 후보를 제안하고 사용자가 확인"
+   },
+   "requires_approval": true,
+   "cost": "프로젝트 스택 필요",
+   "priority": "상",
+   "hold": null,
+   "deferred": null,
+   "retire_when": null
+  },
+  {
+   "id": "B13",
+   "title": ".claude/agents/ 역할 서브에이전트 (planner/executor/reviewer·investigator)",
+   "type": "install",
+   "scope": "project",
+   "source_wiki": [
+    "planner-executor-agent-split"
+   ],
+   "detect": [
+    {
+     "kind": "file_exists",
+     "args": {
+      "path": ".claude/agents"
+     }
+    }
+   ],
+   "apply": {
+    "kind": "pr_to_repo",
+    "ref": "에이전트 정의 파일 작성 PR"
+   },
+   "requires_approval": true,
+   "cost": "토큰 비용(병렬). superpowers subagent 스킬이 일부 대체",
+   "priority": "중",
+   "hold": null,
+   "deferred": null,
+   "retire_when": null
+  },
+  {
+   "id": "B15",
+   "title": "새 프로젝트 시작·기존 프로젝트 적용 순서 문서",
+   "type": "guideline",
+   "scope": "project",
+   "source_wiki": [
+    "lecture-index-and-apply-guide",
+    "ai-adoption-maturity-ladder"
+   ],
+   "detect": [
+    {
+     "kind": "file_exists",
+     "args": {
+      "path": "docs/guides/0-start-project.md"
+     }
+    },
+    {
+     "kind": "file_exists",
+     "args": {
+      "path": "docs/ADOPTION.md"
+     }
+    }
+   ],
+   "apply": {
+    "kind": "copy_from_template",
+    "ref": "ai-dev-harness 의 docs/guides/0-start-project.md, docs/ADOPTION.md"
+   },
+   "requires_approval": true,
+   "cost": "비용 없음",
+   "priority": "상",
+   "hold": null,
+   "deferred": null,
+   "retire_when": null
+  },
+  {
+   "id": "B16",
+   "title": "리뷰 심각도 4단계·출력 2층·오탐은 룰 한 줄 (리뷰·완료 가이드)",
+   "type": "guideline",
+   "scope": "project",
+   "source_wiki": [
+    "ai-code-review-automation",
+    "plan-review-four-checks"
+   ],
+   "detect": [
+    {
+     "kind": "file_exists",
+     "args": {
+      "path": "docs/guides/4-review-and-done.md"
+     }
+    }
+   ],
+   "apply": {
+    "kind": "copy_from_template",
+    "ref": "ai-dev-harness/docs/guides/4-review-and-done.md"
+   },
+   "requires_approval": true,
+   "cost": "룰 개수(5~10)는 강의 주장·전사 혼재",
+   "priority": "중",
+   "hold": null,
+   "deferred": null,
+   "retire_when": null
+  },
+  {
+   "id": "C1",
+   "title": "TDD test-first guard (선택 항목: opt-in, 기본 꺼짐 — 필요한 프로젝트만. ⚠검증필요)",
+   "type": "install",
+   "scope": "project",
+   "source_wiki": [
+    "lecture-5-6-tdd-hook",
+    "tdd-hook-test-first-guard",
+    "clova-p1-ch05-guardrails"
+   ],
+   "detect": [
+    {
+     "kind": "file_exists",
+     "args": {
+      "path": ".claude/hooks/tdd_guard.py"
+     }
+    },
+    {
+     "kind": "file_contains",
+     "args": {
+      "path": ".claude/settings.json",
+      "pattern": "tdd_guard"
+     }
+    }
+   ],
+   "apply": {
+    "kind": "read_doc",
+    "ref": "안내: ai-dev-harness docs/guides/6-tdd-guard.md 의 settings 스니펫(shim 은 틀에 포함, settings 는 기본 꺼짐). 엔진 gg-skills/hooks/tdd_guard.py 의 --mode ask|deny, TDD_GUARD_DISABLE=1"
+   },
+   "requires_approval": true,
+   "cost": "범위가 넓으면 개발이 막힘(비즈니스 로직 폴더로 좁힌 뒤에만). 존재만 확인·활성화 시점 미확정·bypass 에서 deny 동작 미확인",
+   "priority": "중",
+   "hold": null,
+   "deferred": null,
+   "retire_when": null
+  },
+  {
+   "id": "D2",
+   "title": "점검 주기 루틴표 (매 PR·주 1회·월 1회·배포 전)",
+   "type": "guideline",
+   "scope": "project",
+   "source_wiki": [
+    "ai-adoption-maturity-ladder",
+    "ai-native-daily-loop"
+   ],
+   "detect": [
+    {
+     "kind": "file_exists",
+     "args": {
+      "path": "docs/guides/3-when-to-use-skills.md"
+     }
+    }
+   ],
+   "apply": {
+    "kind": "copy_from_template",
+    "ref": "ai-dev-harness/docs/guides/3-when-to-use-skills.md §4"
+   },
+   "requires_approval": true,
+   "cost": "비용 없음",
+   "priority": "중",
+   "hold": null,
+   "deferred": null,
+   "retire_when": null
+  },
+  {
+   "id": "E1",
+   "title": "5습관과 /compact·/clear 기준 (일상 루프 가이드)",
+   "type": "guideline",
+   "scope": "project",
+   "source_wiki": [
+    "p0-ch02-ai-native-engineer",
+    "context-window-hygiene"
+   ],
+   "detect": [
+    {
+     "kind": "file_exists",
+     "args": {
+      "path": "docs/guides/2-daily-loop-and-second-brain.md"
+     }
+    }
+   ],
+   "apply": {
+    "kind": "copy_from_template",
+    "ref": "ai-dev-harness/docs/guides/2-daily-loop-and-second-brain.md §5"
+   },
+   "requires_approval": true,
+   "cost": "임계값이 챕터마다 다름 — '일찍·자주'만 채택",
+   "priority": "중",
+   "hold": null,
+   "deferred": null,
+   "retire_when": null
+  },
+  {
+   "id": "E2",
+   "title": "계획 승인 전 4체크 (범위·기존 패턴·테스트·리스크)",
+   "type": "guideline",
+   "scope": "project",
+   "source_wiki": [
+    "plan-review-four-checks"
+   ],
+   "detect": [
+    {
+     "kind": "file_exists",
+     "args": {
+      "path": "docs/guides/2-daily-loop-and-second-brain.md"
+     }
+    }
+   ],
+   "apply": {
+    "kind": "copy_from_template",
+    "ref": "ai-dev-harness/docs/guides/2-daily-loop-and-second-brain.md §5 + PR 템플릿"
+   },
+   "requires_approval": true,
+   "cost": "비용 없음",
+   "priority": "중",
+   "hold": null,
+   "deferred": null,
+   "retire_when": null
+  },
+  {
+   "id": "E3",
+   "title": "하루 루프 (브리핑→위임→검수→정리)",
+   "type": "guideline",
+   "scope": "project",
+   "source_wiki": [
+    "ai-native-daily-loop"
+   ],
+   "detect": [
+    {
+     "kind": "file_exists",
+     "args": {
+      "path": "docs/guides/2-daily-loop-and-second-brain.md"
+     }
+    }
+   ],
+   "apply": {
+    "kind": "copy_from_template",
+    "ref": "ai-dev-harness/docs/guides/2-daily-loop-and-second-brain.md §2"
+   },
+   "requires_approval": true,
+   "cost": "'30분→5분'은 강사 체감",
+   "priority": "중",
+   "hold": null,
+   "deferred": null,
+   "retire_when": null
+  },
+  {
+   "id": "E4",
+   "title": "같은 일 3번→스킬, 같은 실수 3번→규칙(CLAUDE.md) 승격",
+   "type": "guideline",
+   "scope": "project",
+   "source_wiki": [
+    "harness-engineering-six-axes",
+    "agentic-engineering-five-pillars"
+   ],
+   "detect": [
+    {
+     "kind": "file_exists",
+     "args": {
+      "path": "docs/guides/4-review-and-done.md"
+     }
+    }
+   ],
+   "apply": {
+    "kind": "copy_from_template",
+    "ref": "ai-dev-harness/docs/guides/4-review-and-done.md §6"
+   },
+   "requires_approval": true,
+   "cost": "하네스가 자라는 유일한 규칙",
+   "priority": "상",
+   "hold": null,
+   "deferred": null,
+   "retire_when": null
+  },
+  {
+   "id": "E5",
+   "title": "SDD 워크플로우 (설계→계획→구현→교정→환류) 와 기능 설계서 양식",
+   "type": "guideline",
+   "scope": "project",
+   "source_wiki": [
+    "spec-driven-development",
+    "lecture-5-7-sdd-harness"
+   ],
+   "detect": [
+    {
+     "kind": "file_contains",
+     "args": {
+      "path": "CLAUDE.md",
+      "pattern": "기본 개발 흐름"
+     }
+    },
+    {
+     "kind": "file_exists",
+     "args": {
+      "path": "templates/FEATURE.md"
+     }
+    }
+   ],
+   "apply": {
+    "kind": "copy_from_template",
+    "ref": "ai-dev-harness 의 CLAUDE.md 기본 개발 흐름 + templates/FEATURE.md"
+   },
+   "requires_approval": true,
+   "cost": "'30분에 MVP'는 강사 주장",
+   "priority": "상",
+   "hold": null,
+   "deferred": null,
+   "retire_when": null
+  },
+  {
+   "id": "E6",
+   "title": "완료 4단계(작성됨·테스트됨·동작함·검증됨)와 AI 완료 선언 불신",
+   "type": "guideline",
+   "scope": "project",
+   "source_wiki": [
+    "p1-ch03-agentic-engineering-intro",
+    "development-workflow-overview"
+   ],
+   "detect": [
+    {
+     "kind": "file_exists",
+     "args": {
+      "path": "docs/guides/4-review-and-done.md"
+     }
+    },
+    {
+     "kind": "file_exists",
+     "args": {
+      "path": ".github/PULL_REQUEST_TEMPLATE.md"
+     }
+    }
+   ],
+   "apply": {
+    "kind": "copy_from_template",
+    "ref": "ai-dev-harness/docs/guides/4-review-and-done.md §1 + PR 템플릿"
+   },
+   "requires_approval": true,
+   "cost": "비용 없음",
+   "priority": "상",
+   "hold": null,
+   "deferred": null,
+   "retire_when": null
+  },
+  {
+   "id": "E9",
+   "title": "'못 맡기겠다' 진단: 맥락·도구·검증 중 무엇이 없었나",
+   "type": "guideline",
+   "scope": "project",
+   "source_wiki": [
+    "ax-agent-experience",
+    "p1-ch03-agentic-engineering-intro"
+   ],
+   "detect": [
+    {
+     "kind": "file_exists",
+     "args": {
+      "path": "docs/guides/4-review-and-done.md"
+     }
+    }
+   ],
+   "apply": {
+    "kind": "copy_from_template",
+    "ref": "ai-dev-harness/docs/guides/4-review-and-done.md §6 표"
+   },
+   "requires_approval": true,
+   "cost": "비용 없음",
+   "priority": "중",
+   "hold": null,
+   "deferred": null,
+   "retire_when": null
+  },
+  {
+   "id": "G1",
+   "title": "AI-Ready 점수 실행 (ai-readiness-cartography, 월 1회 — 점수가 아니라 ROI 액션만 취한다. ⚠검증필요)",
+   "type": "guideline",
+   "scope": "project",
+   "source_wiki": [
+    "ai-ready-codebase",
+    "clova-p1-ch05"
+   ],
+   "detect": [
+    {
+     "kind": "file_exists",
+     "args": {
+      "path": "~/.claude/skills/ai-readiness-cartography/SKILL.md"
+     }
+    },
+    {
+     "kind": "manual",
+     "args": {
+      "question": "최근 30일 안에 이 프로젝트의 AI-Ready 점수를 돌렸고 ROI 액션을 검토했는가?"
+     }
+    }
+   ],
+   "apply": {
+    "kind": "run_skill",
+    "ref": "안내: 대상 프로젝트에서 스킬 실행 → 낮은 카테고리의 ROI 액션만 PR 후보로. 실행 전 대상 확인, 산출물·PR 은 승인"
+   },
+   "requires_approval": true,
+   "cost": "토큰. 루브릭은 강사 임의",
+   "priority": "상",
+   "hold": null,
+   "deferred": null,
+   "retire_when": null
+  },
+  {
+   "id": "G4",
+   "title": "토큰·캐시 리포트 실행 (improve-token-efficiency 월 1회. ⚠검증필요)",
+   "type": "guideline",
+   "scope": "project",
+   "source_wiki": [
+    "token-cost-governance",
+    "clova-p1-ch05"
+   ],
+   "detect": [
+    {
+     "kind": "file_exists",
+     "args": {
+      "path": "~/.claude/skills/improve-token-efficiency/SKILL.md"
+     }
+    },
+    {
+     "kind": "manual",
+     "args": {
+      "question": "최근 30일 안에 토큰·캐시 리포트를 돌렸는가?"
+     }
+    }
+   ],
+   "apply": {
+    "kind": "run_skill",
+    "ref": "안내: 스킬 실행(세션 로그 읽기) → 절감안만 채택, 적용은 승인"
+   },
+   "requires_approval": true,
+   "cost": "지표 가중치·시연값은 강의 주장",
+   "priority": "중",
+   "hold": null,
+   "deferred": null,
+   "retire_when": null
+  },
+  {
+   "id": "G7",
+   "title": "prompt cache 규율: 세션 중간에 CLAUDE.md·모델을 바꾸지 않는다 (⚠검증필요)",
+   "type": "guideline",
+   "scope": "project",
+   "source_wiki": [
+    "token-cost-governance",
+    "clova-p1-ch05"
+   ],
+   "detect": [
+    {
+     "kind": "file_contains",
+     "args": {
+      "path": "docs/guides/2-daily-loop-and-second-brain.md",
+      "pattern": "cache|캐시"
+     }
+    }
+   ],
+   "apply": {
+    "kind": "pr_to_repo",
+    "ref": "안내: 일상 루프 가이드 §5 에 한 줄 제안(CLAUDE.md 를 고쳤으면 새 세션이나 핸드오프 파일)"
+   },
+   "requires_approval": true,
+   "cost": "TTL 5분·1/10 가격은 강의 설명, 공식 재확인 필요",
+   "priority": "중",
+   "hold": null,
+   "deferred": null,
+   "retire_when": null
+  },
+  {
+   "id": "I1",
+   "title": "PR 생성 전 로컬 self-review 를 git hook 으로 강제 (commit 마다가 아니라 PR 전)",
+   "type": "install",
+   "scope": "project",
+   "source_wiki": [
+    "clova-p1-ch05",
+    "clova-p2-ch02",
+    "ai-code-review-automation"
+   ],
+   "detect": [
+    {
+     "kind": "manual",
+     "args": {
+      "question": "pre-push(또는 pre-commit) git hook 이 /code-review 류 self-review 를 돌리는가?"
+     }
+    }
+   ],
+   "apply": {
+    "kind": "pr_to_repo",
+    "ref": "미구현. 같은 스킬을 hook 은 가볍게·Action 은 세게"
+   },
+   "requires_approval": true,
+   "cost": "토큰·시간. 시연의 훅 종류는 전사 불명확",
+   "priority": "중",
+   "hold": null,
+   "deferred": null,
+   "retire_when": null
+  },
+  {
+   "id": "I2",
+   "title": "리뷰 위험도 라우팅 (인증·결제·마이그레이션·의존성 변경 → 보안/아키텍처 관점 리뷰 필수)",
+   "type": "guideline",
+   "scope": "project",
+   "source_wiki": [
+    "ai-code-review-automation",
+    "clova-p1-ch05"
+   ],
+   "detect": [
+    {
+     "kind": "file_contains",
+     "args": {
+      "path": ".github/PULL_REQUEST_TEMPLATE.md",
+      "pattern": "영향 영역|라우팅|관점 리뷰"
+     }
+    }
+   ],
+   "apply": {
+    "kind": "pr_to_repo",
+    "ref": "안내: PR 템플릿 '영향 영역' 칸에 '해당 시 필수 리뷰' 문구 한 줄"
+   },
+   "requires_approval": true,
+   "cost": "자동 라벨링은 Action·API 키 전제(C5)",
+   "priority": "중",
+   "hold": null,
+   "deferred": null,
+   "retire_when": null
+  },
+  {
+   "id": "I4",
+   "title": "Cross review: 구현한 모델과 다른 모델이 리뷰 (Codex 로 짠 것은 Claude 가, 반대도)",
+   "type": "guideline",
+   "scope": "project",
+   "source_wiki": [
+    "skeptic-verification-pattern",
+    "ai-code-review-automation",
+    "codex-cli"
+   ],
+   "detect": [
+    {
+     "kind": "file_contains",
+     "args": {
+      "path": "docs/guides/4-review-and-done.md",
+      "pattern": "교차|cross"
+     }
+    }
+   ],
+   "apply": {
+    "kind": "pr_to_repo",
+    "ref": "안내: 리뷰 가이드에 한 줄"
+   },
+   "requires_approval": true,
+   "cost": "Codex 계정 필요, 토큰 ROI 는 강사도 미판단",
+   "priority": "중",
+   "hold": null,
+   "deferred": null,
+   "retire_when": null
+  },
+  {
+   "id": "J1",
+   "title": "세션 회고 루틴: 세션 끝에 '스킬·스크립트·에이전트로 만들 것'을 묻고 3회 반복이면 스킬화",
+   "type": "guideline",
+   "scope": "project",
+   "source_wiki": [
+    "harness-improvement-loop",
+    "claude-md-management"
+   ],
+   "detect": [
+    {
+     "kind": "file_contains",
+     "args": {
+      "path": "docs/guides/2-daily-loop-and-second-brain.md",
+      "pattern": "회고"
+     }
+    }
+   ],
+   "apply": {
+    "kind": "pr_to_repo",
+    "ref": "안내: 일상 루프 가이드에 회고 질문 한 행(CLAUDE.md 쪽 갱신은 /revise-claude-md)"
+   },
+   "requires_approval": true,
+   "cost": "과잉설계 경향(강의). 자동 메모리와 겹침",
+   "priority": "상",
+   "hold": null,
+   "deferred": null,
+   "retire_when": null
+  },
+  {
+   "id": "C5",
+   "title": "AI 코드 리뷰 자동화 (Action + claude -p, ⚠검증필요)",
+   "type": "install",
+   "scope": "project",
+   "source_wiki": [
+    "p2-ch02-autonomous-pr-reviewer",
+    "ai-code-review-automation"
+   ],
+   "detect": [
+    {
+     "kind": "manual",
+     "args": {
+      "question": ".github/workflows 에 claude -p 또는 codex exec 리뷰 Action 이 있는가?"
+     }
+    }
+   ],
+   "apply": {
+    "kind": "pr_to_repo",
+    "ref": "도입 가드(팀 동의·docs PR 부터·dry-run) 후 Action 추가"
+   },
+   "requires_approval": true,
+   "cost": "ANTHROPIC_API_KEY·토큰 비용",
+   "priority": "하",
+   "hold": null,
+   "deferred": "틀 §7 '지금 규모에서는 과함' — 운영 서비스·팀 규모가 생기면 해제",
+   "retire_when": null
+  },
+  {
+   "id": "C6",
+   "title": "CI 실패 → 수정 PR 자동화 (workflow_run + claude -p, ⚠검증필요)",
+   "type": "install",
+   "scope": "project",
+   "source_wiki": [
+    "p2-ch04-oncall-cicd-agent",
+    "oncall-agent-alert-as-code"
+   ],
+   "detect": [
+    {
+     "kind": "manual",
+     "args": {
+      "question": ".github/workflows 에 CI 실패 수정 PR 자동화가 있는가?"
+     }
+    }
+   ],
+   "apply": {
+    "kind": "pr_to_repo",
+    "ref": "출력은 항상 PR·자동 머지 금지·봇 브랜치 스킵"
+   },
+   "requires_approval": true,
+   "cost": "API 키·비용·운영 서비스 전제",
+   "priority": "하",
+   "hold": null,
+   "deferred": "틀 §7 '지금 규모에서는 과함' — 운영 서비스·팀 규모가 생기면 해제",
+   "retire_when": null
+  },
+  {
+   "id": "C8",
+   "title": "헤드리스 하네스 실행기 (execute.py·phases/·스텝별 claude -p, ⚠검증필요)",
+   "type": "install",
+   "scope": "project",
+   "source_wiki": [
+    "lecture-5-7-sdd-harness",
+    "lecture-harness-vs-superpowers"
+   ],
+   "detect": [
+    {
+     "kind": "file_exists",
+     "args": {
+      "path": "scripts/execute.py"
+     }
+    }
+   ],
+   "apply": {
+    "kind": "pr_to_repo",
+    "ref": "미구현. superpowers 가 방법론은 대체"
+   },
+   "requires_approval": true,
+   "cost": "claude -p 과금 정책 공식 미확인",
+   "priority": "하",
+   "hold": null,
+   "deferred": "틀 §7 '지금 규모에서는 과함' — 운영 서비스·팀 규모가 생기면 해제",
+   "retire_when": null
+  }
+ ]
+}
