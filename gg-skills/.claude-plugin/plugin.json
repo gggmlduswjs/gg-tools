@@ -17,6 +17,7 @@
   ],
   "skills": [
     "./skills/engineering/ask-gg",
+    "./skills/engineering/onboard",
     "./skills/engineering/existing-system-modernization",
     "./skills/engineering/lighthouse-performance-loop",
     "./skills/engineering/observability-posthog-seo",

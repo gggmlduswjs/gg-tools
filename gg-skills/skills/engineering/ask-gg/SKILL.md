@@ -9,6 +9,7 @@ description: gg-skills 에 어떤 스킬이 있고 언제 무엇을 쓰는지 �
 
 | 하려는 일 | 스킬 |
 |---|---|
+| 새 PC·새 프로젝트 환경 점검, 온보딩 | `onboard` |
 | 운영 중인 제품의 기존 기능 변경 | `existing-system-modernization` (구현은 Superpowers) |
 | PRD·기능명세·유저플로우·와이어프레임 묶음 | `product-spec-kit` |
 | 레포 보안 점검 | `owasp-security-scan` (레포 전용 보안 스킬이 있으면 그것 먼저) |
