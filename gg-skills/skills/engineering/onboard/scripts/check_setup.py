@@ -9,6 +9,8 @@
   python check_setup.py --structure --full    # 구조 밖 파일 전체 목록
   python check_setup.py --structure --deep    # 참조 검사 상한(2000개) 해제
   python check_setup.py --catalog             # + 강의 적용 카탈로그 점검(sources.yaml 에 catalog: true 로도 켬)
+  python check_setup.py --adopt <경로|프로젝트이름>   # 기존 프로젝트 개편 계획서 초안(마크다운, stdout). --min-files N · --out 파일
+  python check_setup.py --impact <경로|문자열> [--project <경로|이름>] [--full] [--out 파일]   # 참조 수 집계(위험 판정 아님)
   python check_setup.py --selftest
 
 대상 목록 기본 위치: ~/.claude/onboard/sources.yaml (예시: ../config/sources.example.yaml)
@@ -379,6 +381,381 @@ def report_catalog(rows):
     return "\n".join(lines)
 
 
+# ---- 기존 프로젝트 개편: --adopt(계획서 초안) · --impact(참조 수 집계). 읽기 전용, 결과는 stdout(--out 은 새 파일만) ----
+CODE_EXT = {".py", ".js", ".ts", ".tsx", ".jsx", ".vue", ".java", ".kt", ".go", ".rs", ".cs", ".rb", ".php", ".sh", ".ps1"}
+RULE_RE = re.compile(r"브랜치|\bPR\b|머지|\bmerge|운영|금지|⛔|Linear|정본|승인|worktree|force|--apply|--no-verify|origin/main", re.I)
+UNK = "미확인"
+MARK = "[ 승인 지점: ____ · 검증: ____ · 롤백: ____ ]"
+MAP_MARK = "[ 사람이 매핑표 작성 ]"
+
+
+def resolve_project(arg, projects):
+    """경로면 그대로, 구분자 없는 이름이면 sources.yaml projects 의 폴더 이름과 대조. 못 찾으면 None."""
+    if not re.search(r"[/\\~]", arg):
+        for q in projects:
+            if os.path.basename(expand(q).rstrip("/\\")).lower() == arg.lower() and os.path.isdir(expand(q)):
+                return expand(q)
+    p = expand(arg)
+    return p if os.path.isdir(p) else None
+
+
+def write_out(path, text, project):
+    """새 파일만 쓴다. 이미 있거나 대상 프로젝트 안이면 거부(None=성공, 문자열=거부 사유)."""
+    out, root = os.path.realpath(path), os.path.realpath(project)
+    if os.path.exists(out):
+        return f"이미 있어 덮어쓰지 않는다: {path}"
+    try:
+        if os.path.commonpath([out, root]) == root:
+            return f"대상 프로젝트 안에는 쓰지 않는다: {path}"
+    except ValueError:  # 다른 드라이브 = 프로젝트 밖
+        pass
+    try:
+        with open(out, "x", encoding="utf-8", newline="\n") as fh:
+            fh.write(text)
+    except OSError as e:
+        return f"쓰지 못했다({e}): {path}"
+
+
+def read_lines(p, rel):
+    try:
+        return open(os.path.join(p, rel), encoding="utf-8", errors="replace").read().splitlines()
+    except OSError:
+        return None
+
+
+def nested_stale_titles(p, rel, lines, dirs=()):
+    """제목(첫 # 줄)의 경로 토큰 중 루트·그 CLAUDE.md 폴더 기준으로도, 추적 폴더의 뒷부분으로도 없는 것(낡은 이름 의심)."""
+    head = next((x for x in lines if x.startswith("#")), "")
+    base = os.path.dirname(rel)
+    toks = re.findall(r"[\w.\-]+(?:/[\w.\-]+)*/|[\w.\-]+(?:/[\w.\-]+)+", head)
+    return [t for t in toks if not (os.path.exists(os.path.join(p, t)) or os.path.exists(os.path.join(p, base, t)) or
+                                    any(d == t.rstrip("/") or d.endswith("/" + t.rstrip("/")) for d in dirs))]
+
+
+def code_layout(p, files):
+    """(상위 폴더 표 행, 코드 기준 폴더, 모듈 폴더 {폴더: (코드 파일 수, 줄 수)}). 줄 수는 코드 파일만."""
+    cl = {}
+    for f in files:
+        if os.path.splitext(f)[1].lower() in CODE_EXT:
+            try:
+                cl[f] = open(os.path.join(p, f), "rb").read().count(b"\n")
+            except OSError:
+                pass
+    top = {}
+    for f in files:
+        d = f.split("/")[0] if "/" in f else "(루트 파일)"
+        t = top.setdefault(d, [0, 0, 0])
+        t[0] += 1
+        if f in cl:
+            t[1] += 1
+            t[2] += cl[f]
+    base = ""
+    if any(f.startswith("src/") for f in cl):
+        base = "src"
+        while True:  # 코드 80% 이상이 한 하위 폴더에 있고 이 폴더에 직속 코드가 없으면 한 단계 내려간다
+            pre = base + "/"
+            sub = {}
+            for f in cl:
+                if f.startswith(pre):
+                    seg = f[len(pre):].split("/", 1)
+                    sub[seg[0] if len(seg) > 1 else ""] = sub.get(seg[0] if len(seg) > 1 else "", 0) + 1
+            tot = sum(sub.values())
+            best = max((k for k in sub if k), key=lambda k: sub[k], default=None)
+            if best and not sub.get("") and sub[best] >= 0.8 * tot:
+                base += "/" + best
+            else:
+                break
+    mods = {}
+    pre = base + "/" if base else ""
+    for f, n in cl.items():
+        if f.startswith(pre) and "/" in f[len(pre):]:
+            m = pre + f[len(pre):].split("/")[0]
+            e = mods.setdefault(m, [0, 0])
+            e[0] += 1
+            e[1] += n
+    if not base:  # src 가 없으면 코드가 든 최상위 폴더가 모듈 후보
+        mods = {k: (v[1], v[2]) for k, v in top.items() if v[1] and k != "(루트 파일)"}
+    return sorted(top.items(), key=lambda x: -x[1][0]), base, mods
+
+
+def settings_hooks(p):
+    """{이벤트: 항목 수}. settings.json 이 없거나 깨지면 None."""
+    try:
+        h = json.load(open(os.path.join(p, ".claude", "settings.json"), encoding="utf-8")).get("hooks", {})
+        return {k: sum(len(x.get("hooks", [])) for x in v if isinstance(x, dict)) for k, v in h.items()}
+    except Exception:
+        return None
+
+
+def build_adopt(path, min_files=10):
+    import datetime
+    p = expand(path)
+    name = os.path.basename(os.path.realpath(p).rstrip("/\\"))
+    files = [f for f in git(p, "ls-files").stdout.splitlines() if f]
+    if not files:
+        return f"# {name} 적용 계획서 초안\n\ngit 추적 파일을 읽지 못했다(git 저장소 아님?) — {UNK}.\n"
+    branch = git(p, "rev-parse", "--abbrev-ref", "HEAD").stdout.strip() or UNK
+    fset = set(files)
+    L = [f"# {name} -> ai-dev-harness 적용 계획서 초안 (자동 생성 · 읽기 전용)", "",
+         f"생성일 {datetime.date.today()} · 대상 `{os.path.normpath(p)}` · 브랜치 {branch} · git 추적 파일 {len(files)}개",
+         "이 문서는 `check_setup.py --adopt` 가 만든 초안이다. 숫자는 `git ls-files`·파일 읽기 결과이고, 모르는 것은 추측하지 않고 "
+         f"'{UNK}' 로 적는다. 사람이 읽고 고친 뒤 정본으로 삼는다.", ""]
+    # (0) 전제
+    L += ["## 0. 전제 요약", "",
+          "- 이 스크립트는 파일을 만들거나 고치지 않는다(대상 프로젝트 안에는 쓰지 않는다). 아래는 초안이다.",
+          "- **이름·폴더 변경과 로직 변경은 제안하지 않는다.** 후보가 생기면 `--impact`(참조 수 집계) 로 영향을 본 뒤 사람이 결정한다. "
+          "참조 수는 위험 판정이 아니다.",
+          f"- 이 스크립트가 모르는 것: 운영 서버 유닛·cron, DB 에 경로·모듈명이 저장되는지, Linear 이슈 안의 경로, 테스트 커버리지, 죽은 코드 — 전부 {UNK}.",
+          "- 프로젝트 정본 규칙(CLAUDE.md·AGENTS.md)이 harness 지침보다 우선한다(4장 인용).", ""]
+    # (1) 현황
+    L += ["## 1. 현황", "", "### 1-1. 구조(--structure 와 같은 판정)"]
+    present, res, capped = classify(p)
+    miss = [k for k, v in present.items() if not v]
+    L.append(f"- 기준 구조 있음 {len(present) - len(miss)}/{len(present)} · 없음: " + (", ".join(miss) if miss else "(없음)"))
+    L.append(f"- 구조 밖 문서 {sum(len(v) for v in res.values())}개: 참조됨 {len(res['참조됨'])} (코드·훅·문서가 경로 인용 — 이동 금지) · "
+             f"낡은 후보 {len(res['낡은 후보'])} · 확인 {len(res['확인'])}" + (f" · 후보 상한({DEEP_CAP}) 초과로 참조 검사 생략" if capped else ""))
+    L.append(f"- docs/ 추적 파일 {sum(1 for f in files if f.startswith('docs/'))}개 · 루트 PRODUCT.md 등 PRD 후보는 {UNK}(사람이 판단)")
+    L += ["", "### 1-2. 강의 적용 카탈로그: 이 프로젝트 우선순위 상 `확인`"]
+    rows = [r for r in check_catalog(CATALOG, [p]) if r[3] == name and r[4] == WARN and r[1] == "상"]
+    L.append(f"- {len(rows)}개" + ("" if rows else " (없음)"))
+    L += [f"  - {r[0]} {r[2]} — {r[5]}" for r in rows]
+    L += ["", "### 1-3. 지침 파일"]
+    L += ["| 파일 | 줄 수 | 비고 |", "|---|---|---|"]
+    for rel in ("CLAUDE.md", "AGENTS.md"):
+        ls = read_lines(p, rel)
+        L.append(f"| {rel} | {len(ls)} | {'200줄 초과' if len(ls) > 200 else '200줄 이내'} |" if ls is not None else f"| {rel} | - | 없음 |")
+    L += ["", "### 1-4. .claude/ 현황 (git 추적 기준)"]
+    cf = [f for f in files if f.startswith(".claude/")]
+    for sub in ("rules", "skills", "agents", "hooks"):
+        fs = [f for f in cf if f.startswith(f".claude/{sub}/")]
+        L.append(f"- {sub}: 파일 {len(fs)}개" + (" — " + ", ".join(sorted({f.split('/')[2] for f in fs})[:8]) if fs else ""))
+    sh = settings_hooks(p)
+    if not os.path.exists(os.path.join(p, ".claude", "settings.json")):
+        L.append("- settings.json: 없음")
+    elif sh is None:
+        L.append(f"- settings.json: 읽지 못함({UNK})")
+    else:
+        L.append("- settings.json: hooks " + (", ".join(f"{k} {v}개" for k, v in sh.items()) or "없음"))
+    L += ["", "### 1-5. 새 hook 과 경로 충돌 검토"]
+    hooks = {os.path.basename(f) for f in cf if f.startswith(".claude/hooks/")}
+    has_scripts = any(f.startswith("scripts/") for f in files)
+    L.append(f"- CLAUDE.md 점검 `.claude/hooks/claude-md-check.py`: {'이미 있음' if 'claude-md-check.py' in hooks else '없음'}")
+    L.append(f"- 그 shim 이 호출할 `scripts/check-claude-md.py`: {'있음' if 'scripts/check-claude-md.py' in fset else '없음'} · `scripts/` 폴더: "
+             f"{'있음' if has_scripts else '없음'}" + ("" if has_scripts else " (`_scripts/` " + ("있음" if any(f.startswith("_scripts/") for f in files) else "없음") +
+             ") — shim 은 예외를 삼키므로 폴더가 없으면 조용히 아무것도 안 한다(조용한 실패). 점검기 위치는 사람이 결정"))
+    tdd = sorted(h for h in hooks if "tdd" in h.lower())
+    cdx = sorted(os.path.basename(f) for f in files if f.startswith(".codex/hooks/") and "tdd" in f.lower())
+    L.append("- TDD guard 류 Claude hook: " + (", ".join(tdd) or "없음") + " · `.codex/hooks` 의 TDD: " + (", ".join(cdx) or "없음"))
+    L.append(f"- guardrail: {'`.claude/hooks/guardrail.py` 이미 있음 — 공용 엔진 shim 인지 사람이 확인' if 'guardrail.py' in hooks else '없음'}")
+    if sh is not None:
+        L.append(f"- SessionStart 항목 수 {sh.get('SessionStart', 0)}개 — 새 hook 은 `async: true` 로 추가해 세션 시작을 늦추지 않는다(기존 동기 항목이 있으면 확인)")
+    pol = []
+    for rel in ("CLAUDE.md", "AGENTS.md"):
+        for i, ln in enumerate(read_lines(p, rel) or [], 1):
+            m = re.search(r"TDD", ln, re.I)
+            if m and re.search(r"금지|않는다|만들지|하지 마", ln):
+                pol.append(f"{rel}:{i}: …{ln[max(0, m.start() - 60):m.end() + 40].strip()}…")
+    L += [f"- 프로젝트 정책 충돌 가능(TDD): `{x}`" for x in pol] or ["- TDD 관련 금지 문구: 발견 못 함(없다는 보장은 아님)"]
+    # (2) 레이아웃
+    top, base, mods = code_layout(p, files)
+    L += ["", "## 2. 코드·폴더 레이아웃 요약", "", "| 상위 폴더 | 추적 파일 | 코드 파일 | 코드 줄 수 |", "|---|---|---|---|"]
+    L += [f"| {k} | {v[0]} | {v[1]} | {v[2]} |" for k, v in top[:15]]
+    if len(top) > 15:
+        L.append(f"| … 외 {len(top) - 15}개 폴더 | | | |")
+    L += ["", f"- 코드 기준 폴더(자동 추정): `{base or '(저장소 루트)'}`"]
+    rec = any(f.startswith(("src/backend/", "src/frontend/")) for f in files)
+    L.append("- harness 권장 레이아웃(`src/backend`·`src/frontend`·도메인 폴더): " + ("있음" if rec else "없음 — 어긋남") +
+             ("" if rec else f" → {MAP_MARK} (현재 경로 ↔ 권장 경로, 이동 여부는 `--impact` 후 사람이 결정)"))
+    fe = sorted({os.path.dirname(f) or "." for f in files if os.path.basename(f) == "package.json"})
+    L.append("- 프론트 후보(package.json 위치): " + (", ".join(fe[:6]) if fe else "없음") + (f" → {MAP_MARK}" if fe and not rec else ""))
+    L.append("- 위 폴더 이름·위치를 바꾸라는 뜻이 아니다. 어긋남은 매핑표(문서)로 대응하고 이동은 별도 결정이다.")
+    # (3) 도메인 CLAUDE.md
+    L += ["", "## 3. 도메인별 CLAUDE.md 후보", "",
+          f"기준: 코드 모듈 폴더(`{base or '루트'}` 아래)의 코드 파일 수 ≥ {min_files} 이고 그 폴더에 추적되는 CLAUDE.md 가 없음(`--min-files N` 로 조정). 담을 규칙은 사람이 정한다.", "",
+          "| 폴더 | 코드 파일 | 코드 줄 수 | CLAUDE.md |", "|---|---|---|---|"]
+    cand = [(m, v) for m, v in sorted(mods.items(), key=lambda x: -x[1][0]) if v[0] >= min_files and f"{m}/CLAUDE.md" not in fset]
+    L += [f"| {m} | {v[0]} | {v[1]} | 없음 → 후보 |" for m, v in cand] or ["| (없음) | | | |"]
+    L.append(f"\n후보 {len(cand)}개 / 모듈 폴더 {len(mods)}개. 임계 미만(후보 아님): " + (", ".join(f"{m}({v[0]})" for m, v in sorted(mods.items(), key=lambda x: -x[1][0])
+             if v[0] < min_files and f"{m}/CLAUDE.md" not in fset) or "(없음)"))
+    dirs = {"/".join(f.split("/")[:i]) for f in files for i in range(1, f.count("/") + 1)}
+    nested = sorted(f for f in files if f.endswith("CLAUDE.md") and f != "CLAUDE.md")
+    L += ["", f"기존 하위 CLAUDE.md {len(nested)}개:"]
+    for rel in nested:
+        ls = read_lines(p, rel) or []
+        st = nested_stale_titles(p, rel, ls, dirs)
+        L.append(f"- {rel}: {len(ls)}줄" + (" (200줄 초과)" if len(ls) > 200 else "") +
+                 (f" · 제목의 경로 {', '.join('`' + t + '`' for t in st)} 가 존재하지 않음 → 낡은 이름 의심(사람이 확인)" if st else ""))
+    # (4) 규칙 인용
+    L += ["", "## 4. 프로젝트 규칙 인용 (이 계획의 제약)", "",
+          "키워드(브랜치·PR·머지·운영·금지·Linear·정본·승인 등)가 든 줄을 그대로 옮겼다. 줄 번호는 현재 체크아웃 기준.", ""]
+    nq = 0
+    for rel in ("CLAUDE.md", "AGENTS.md"):
+        ls = read_lines(p, rel)
+        if ls is None:
+            L.append(f"- {rel}: 없음")
+            continue
+        hit = [(i, x) for i, x in enumerate(ls, 1) if RULE_RE.search(x)]
+        nq += len(hit)
+        L.append(f"### {rel} ({len(hit)}줄)")
+        L += [f"> {rel}:{i}: {x.strip()[:300]}" for i, x in hit[:60]]
+        if len(hit) > 60:
+            L.append(f"… 외 {len(hit) - 60}줄(원문 확인)")
+    L.append(f"\n인용 합계 {nq}줄")
+    # (5) PR 순서
+    L += ["", "## 5. 단계별 PR 순서 골격 (의존 관계 제안일 뿐 — 일정·진행·담당은 프로젝트 정본/Linear)", "",
+          "공통: 작업 브랜치 → 검증 → PR → 명시 승인된 merge. 이 스크립트는 머지하지 않는다. 한 PR = 한 변경(동작 보존과 동작 변경을 섞지 않는다).", ""]
+    for n, t in (("① CLAUDE.md 슬림화", "도메인 한정 내용을 하위 CLAUDE.md 로 내리고(3장) 루트엔 포인터만. 낡은 하위 제목·경로 현행화"),
+                 ("② docs 틀", "기준 구조(1-1 '없음' 목록)를 추가만 한다. 기존 docs 파일을 이동·삭제하지 않는다(코드가 읽는 파일일 수 있음 — '참조됨')"),
+                 ("③ 위키 기반 문서 채우기", "PRD·ROADMAP·ARCHITECTURE·ADR 초안. **원본 위치는 사람이 지정**: `____`. 제품 범위·결정은 AI 가 단정하지 않는다"),
+                 ("④ .claude hook", "CLAUDE.md 점검 hook 등(1-5 충돌 검토 반영). 프로젝트 정책과 충돌하는 hook 은 결정 전 제외"),
+                 ("⑤ 이름·폴더 변경 (별도)", "**위험: 참조·서버·배포·DB 에 저장된 경로가 깨질 수 있다.** `--impact` 로 영향 분석 후 사람이 결정. 이 스크립트는 제안·실행하지 않는다. 결정 시 항목마다 별도 PR"),
+                 ("⑥ 리팩토링 트랙 (분리)", "하네스 문서·hook PR 과 별도 트랙. 안전망(테스트) 확인 후 사람이 범위를 정한다. 로직 변경은 스크립트가 제안하지 않는다")):
+        L += [f"### {n}", f"- 내용: {t}", f"- {MARK}", ""]
+    # (6) 질문
+    L += ["## 6. 사람이 결정할 질문 (자동으로 알 수 없는 것)", "",
+          f"1. 운영 서버의 systemd 유닛·cron·EXE 가 이 저장소의 모듈·경로를 직접 부르는가? ({UNK} — 이름·폴더 변경 판단의 핵심)",
+          f"2. DB 에 파일 경로·모듈 경로가 저장되는가? ({UNK})",
+          f"3. Linear 이슈·PR 본문에 경로가 인용돼 있는가? ({UNK} — Linear 를 조회하지 않았다)",
+          "4. 문서·구조 개편을 프로젝트의 작업 단위 규칙(4장)에 어떻게 맞출까(PR 여러 개를 한 묶음으로 볼지)?",
+          "5. docs 틀에서 코드가 읽는 기존 문서('참조됨')를 어떻게 분류할까(그대로 두고 표기 vs 이동)?"]
+    if pol:
+        L.append("6. 프로젝트 정책이 TDD 관련 도구를 금지한 것으로 보인다(1-5). harness 의 TDD guard 를 넣을지, 정책을 고칠지?")
+    if not has_scripts:
+        L.append("7. 점검기 위치 `scripts/` 폴더가 없다. 만들지, 기존 폴더에 두고 shim 경로를 바꿀지?")
+    L.append(f"8. 이 저장소에서 가장 먼저 줄일 지침은 무엇인가? (CLAUDE.md {len(read_lines(p, 'CLAUDE.md') or [])}줄 — 줄 수보다 도메인 한정 내용이 있는지가 기준)")
+    return "\n".join(L) + "\n"
+
+
+def impact_cat(f):
+    """파일 경로 -> 범주. 위에서부터 첫 일치."""
+    lo, base = f.lower(), os.path.basename(f).lower()
+    parts = lo.split("/")
+    ext = os.path.splitext(base)[1]
+    if (lo.startswith(".github/") or base.startswith(("dockerfile", "docker-compose")) or ext in (".service", ".timer", ".cron") or
+            any(x in parts[:-1] for x in ("systemd", "cron", "deploy", "scripts", "_scripts"))):
+        return "CI/배포"
+    if (any(x in parts[:-1] for x in ("tests", "test", "__tests__")) or base.startswith("test_") or
+            re.search(r"(_test\.[a-z]+|\.(spec|test)\.[a-z]+)$", base)):
+        return "테스트"
+    if ext in (".md", ".mdx", ".txt", ".rst") or parts[0] == "docs":
+        return "문서"
+    if ext in (".toml", ".ini", ".cfg", ".json", ".yaml", ".yml", ".conf", ".env", ".spec", ".lock") or base in ("makefile", "procfile"):
+        return "설정"
+    if ext in CODE_EXT:
+        return "코드"
+    return "기타"
+
+
+def is_ops_touch(f):
+    lo, base = f.lower(), os.path.basename(f).lower()
+    return (lo.startswith(".github/workflows/") or base.endswith((".spec", ".service", ".timer", ".cron")) or
+            base in ("pyproject.toml", "pytest.ini", "setup.cfg", "tox.ini", "codeowners", "procfile", "manage.py", "package.json") or
+            base.startswith(("dockerfile", "docker-compose", "requirements")) or re.search(r"(^|/)(systemd|cron|deploy)/", lo) is not None or
+            re.search(r"(wsgi|asgi)\.py$", base) is not None)
+
+
+IMPORT_RE = re.compile(r"^\s*(from\s+\S+\s+import|import\s+\S|.*\brequire\()|^\s*import\s.*\bfrom\b")
+
+
+def collect_impact(p, target):
+    """{파일: [매칭 줄 수, import 줄 수]}. git grep -F -I 한 번(추적 파일만). '/' 가 든 대상은 역슬래시 형태도 찾는다."""
+    pats = ["-e", target] + (["-e", target.replace("/", "\\")] if "/" in target else [])
+    out = git(p, "grep", "-F", "-I", "-n", *pats).stdout
+    hit = {}
+    for line in out.splitlines():
+        m = re.match(r"^(.*?):(\d+):(.*)$", line)
+        if m:
+            e = hit.setdefault(m.group(1), [0, 0])
+            e[0] += 1
+            if IMPORT_RE.match(m.group(3)) and os.path.splitext(m.group(1))[1].lower() in CODE_EXT:
+                e[1] += 1
+    return hit
+
+
+def build_impact(path, target, full=False, depth=2):
+    p = expand(path)
+    files = [f for f in git(p, "ls-files").stdout.splitlines() if f]
+    name = os.path.basename(os.path.realpath(p).rstrip("/\\"))
+    if not files:
+        return f"git 추적 파일을 읽지 못했다(git 저장소 아님?): {path}\n"
+    t = target.replace("\\", "/")
+    hit = collect_impact(p, t)
+    cats = {}
+    for f, (n, imp) in hit.items():
+        c = cats.setdefault(impact_cat(f), [0, 0, 0])
+        c[0] += 1
+        c[1] += n
+        c[2] += imp
+    tn = t.rstrip("/")
+    inside = [f for f in files if f == tn or f.startswith(tn + "/")]
+    L = [f"# --impact 참조 수: `{target}` @ {name} (git 추적 {len(files)}개 파일 기준 · 읽기 전용)", "",
+         "**주의:** 아래는 문자열이 든 파일·줄의 *참조 수*일 뿐 위험 판정이 아니다. 문자열(파일명) 일치 기반이라 같은 글자를 다른 뜻으로 쓴 곳은 과대, "
+         "동적으로 조립한 경로·이름이나 추적되지 않는 파일(빌드 산출물·.gitignore)은 과소일 수 있다. "
+         "Linear 이슈·DB 값·운영 서버의 실제 상태(systemd·cron·배포된 EXE)는 알지 못한다.", "",
+         f"- 매칭 파일 {len(hit)}개 · 매칭 줄 {sum(v[0] for v in hit.values())}줄" +
+         (f" · 대상이 추적 경로임(안의 파일 {len(inside)}개, 그중 매칭 {sum(1 for f in hit if f in set(inside))}개)" if inside else ""), "",
+         "| 범주 | 파일 | 줄 | 그중 import 형태 줄 |", "|---|---|---|---|"]
+    for c in ("코드", "설정", "CI/배포", "문서", "테스트", "기타"):
+        v = cats.get(c, [0, 0, 0])
+        L.append(f"| {c} | {v[0]} | {v[1]} | {v[2]} |")
+    L.append(f"\nimport 형태 줄(코드·테스트 파일의 `import`/`from … import`/`require(` 줄) 합계: {sum(v[2] for v in cats.values())}줄 · "
+             f"{sum(1 for v in hit.values() if v[1])}파일 (정규식 근사 — 여러 줄 import·문자열 속 import 는 틀릴 수 있다)")
+    L += ["", f"### 상위 폴더별 분포({depth}단계)"]
+    dist = {}
+    for f, (n, _) in hit.items():
+        k = "/".join(f.split("/")[:depth]) if f.count("/") >= depth else (os.path.dirname(f) or "(루트)")
+        e = dist.setdefault(k, [0, 0])
+        e[0] += 1
+        e[1] += n
+    L += [f"- {k}: 파일 {v[0]} · 줄 {v[1]}" for k, v in sorted(dist.items(), key=lambda x: -x[1][0])[:(None if full else 12)]] or ["- (없음)"]
+    ops = sorted(f for f in hit if is_ops_touch(f))
+    L += ["", f"### 운영 접점 파일이 걸렸는가: {len(ops)}개" + (" (서버·배포·EXE 스펙·패키지·테스트 설정 등 — 서버 쪽 실제 상태는 미확인)" if ops else "")]
+    L += [f"- {f} ({hit[f][0]}줄)" for f in (ops if full else ops[:20])]
+    if not full and len(ops) > 20:
+        L.append(f"- … 외 {len(ops) - 20}개(--full)")
+    top = sorted(hit.items(), key=lambda x: (-x[1][0], x[0]))
+    L += ["", f"### 매칭 줄이 많은 파일 {'전체' if full else '상위 20'}"]
+    L += [f"- {f} [{impact_cat(f)}] {v[0]}줄" for f, v in (top if full else top[:20])]
+    if not full and len(top) > 20:
+        L.append(f"- … 외 {len(top) - 20}개(--full)")
+    return "\n".join(L) + "\n"
+
+
+def run_adopt_impact(argv, sources_path):
+    """--adopt / --impact 실행. 종료 코드를 돌려준다."""
+    def opt(flag):
+        return argv[argv.index(flag) + 1] if flag in argv and argv.index(flag) + 1 < len(argv) else None
+    projects = []
+    if os.path.exists(sources_path):
+        projects = parse_sources(open(sources_path, encoding="utf-8").read()).get("projects", [])
+    adopt, imp = opt("--adopt"), opt("--impact")
+    ref = adopt or opt("--project") or os.getcwd()
+    p = resolve_project(ref, projects)
+    if not p or not os.path.isdir(os.path.join(p, ".git")):
+        print(f"프로젝트를 찾지 못했거나 git 저장소가 아니다: {ref} (경로 또는 sources.yaml 의 프로젝트 이름)", file=sys.stderr)
+        return 2
+    try:
+        mf = int(opt("--min-files") or 10)
+    except ValueError:
+        print("--min-files 는 정수", file=sys.stderr)
+        return 2
+    text = build_adopt(p, mf) if adopt else build_impact(p, imp, "--full" in argv)
+    out = opt("--out")
+    if out:
+        err = write_out(expand(out), text, p)
+        if err:
+            print(err, file=sys.stderr)
+            return 2
+        print(f"저장: {out}")
+    else:
+        try:
+            sys.stdout.reconfigure(encoding="utf-8")
+        except Exception:
+            pass
+        print(text)
+    return 0
+
+
 def check_wiki(path):
     p = expand(path)
     if not os.path.isdir(p):
@@ -425,6 +802,8 @@ def main(argv):
     src = os.path.join(HOME, ".claude", "onboard", "sources.yaml")
     if "--sources" in argv:
         src = expand(argv[argv.index("--sources") + 1])
+    if "--adopt" in argv or "--impact" in argv:  # 기존 프로젝트 개편 분석: PC 점검 없이 이것만
+        return run_adopt_impact(argv, src)
     rows = check_pc()
     structure, details = "--structure" in argv, []
     catalog, projects = "--catalog" in argv, []
@@ -504,6 +883,41 @@ def selftest():
             assert r == {"docs/a/x.md": True, "docs/b/x.md": False, "docs/u.md": True}, r
             open(os.path.join(d, "ref.txt"), "w").write(r"docs\b\x.md only x.md")
             assert referenced(d, ["docs/a/x.md", "docs/b/x.md"], files) == {"docs/a/x.md": False, "docs/b/x.md": True}
+        if run(["git", "--version"])[0] == 0:  # --impact·--adopt: 임시 저장소(-C 지정, GIT_* 는 selftest 첫머리에서 제거됨)
+            e = os.path.join(d, "ex")
+            os.makedirs(e)
+            run(["git", "-C", e, "init", "-q"])
+            tree = {"src/pkg/a.py": "from pkg import x\n", "src/pkg/b.py": "import pkg\nprint('pkg')\n", "src/pkg/sub/x.py": "pass\n",
+                    "src/pkg/sub/y.py": "pass\n", "src/pkg/old/CLAUDE.md": "# `gone/name/` 모듈\n", "tests/test_a.py": "import pkg\n",
+                    "docs/x.md": "pkg 설명\n", ".github/workflows/ci.yml": "run: pytest pkg\n", "pyproject.toml": "name = 'pkg'\n",
+                    "deploy/app.service": "ExecStart=python -m pkg\n", "CLAUDE.md": "# t\n- main 에 직접 push 금지\n- 운영 DB 는 승인 후\n",
+                    "AGENTS.md": "x\n"}
+            for rel, body in tree.items():
+                os.makedirs(os.path.dirname(os.path.join(e, rel)), exist_ok=True)
+                open(os.path.join(e, rel), "w", encoding="utf-8").write(body)
+            run(["git", "-C", e, "add", "."])
+            run(["git", "-C", e, "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qm", "t"])
+            assert [impact_cat(f) for f in ("src/a.py", "tests/t.py", "docs/x.md", "pyproject.toml", ".github/w.yml", "x/y.service", "a.png")] == \
+                   ["코드", "테스트", "문서", "설정", "CI/배포", "CI/배포", "기타"]
+            hit = collect_impact(e, "pkg")
+            assert len(hit) == 7 and hit["src/pkg/b.py"] == [2, 1] and hit["src/pkg/a.py"] == [1, 1], hit
+            txt = build_impact(e, "pkg")
+            for want in ("| 코드 | 2 | 3 | 2 |", "| 테스트 | 1 | 1 | 1 |", "| 문서 | 1 | 1 | 0 |", "| 설정 | 1 | 1 | 0 |", "| CI/배포 | 2 | 2 | 0 |",
+                         "합계: 3줄", "운영 접점 파일이 걸렸는가: 3개", "위험 판정이 아니다", "알지 못한다"):
+                assert want in txt, (want, txt)
+            ad = build_adopt(e, min_files=2)
+            for want in ["## %d." % n for n in range(7)] + [UNK, MAP_MARK, "낡은 이름 의심", "src/pkg/sub | 2 |", "CLAUDE.md:2: - main 에 직접 push 금지",
+                                                       "CLAUDE.md:3: - 운영 DB", "인용 합계 2줄", "--impact", "제안하지 않는다"]:
+                assert want in ad, (want, ad)
+            assert "src/pkg/old/CLAUDE.md: 1줄 · 제목의 경로 `gone/name/`" in ad, ad
+            assert resolve_project("ex", [e]) == e and resolve_project("none", [e]) is None and resolve_project(e, []) == e
+            o = os.path.join(d, "plan.md")
+            assert write_out(o, ad, e) is None and open(o, encoding="utf-8").read() == ad
+            assert "덮어쓰지" in write_out(o, "x", e) and open(o, encoding="utf-8").read() == ad  # 덮어쓰기 거부
+            assert "프로젝트 안" in write_out(os.path.join(e, "p.md"), "x", e) and not os.path.exists(os.path.join(e, "p.md"))
+            assert run_adopt_impact(["--adopt", e, "--out", o], os.path.join(d, "none.yaml")) == 2  # CLI 도 거부
+            assert run_adopt_impact(["--impact", "pkg", "--project", os.path.join(d, "nodir")], "") == 2
+            assert run(["git", "-C", e, "status", "--short"])[1] == ""  # 읽기 전용: 저장소가 더러워지지 않음
         assert "합계" in report([("PC", "x", OK, "")])
         reg, cfg = os.path.join(d, "reg.json"), os.path.join(d, "cfg.json")
         json.dump({"plugins": [{"id": "a@m1"}]}, open(cfg, "w"))
@@ -580,4 +994,7 @@ def selftest():
 
 
 if __name__ == "__main__":
-    selftest() if "--selftest" in sys.argv else main(sys.argv[1:])
+    if "--selftest" in sys.argv:
+        selftest()
+    else:
+        sys.exit(main(sys.argv[1:]) or 0)
