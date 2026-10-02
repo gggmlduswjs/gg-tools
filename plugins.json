@@ -148,6 +148,10 @@
     {
       "name": "refactoring-ui",
       "repo": "s0xDk/refactoring-ui-skill"
+    },
+    {
+      "name": "repo-atlas",
+      "repo": "cathrynlavery/repo-atlas"
     }
   ],
   "repos": [
