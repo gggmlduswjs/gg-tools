@@ -30,7 +30,7 @@ pwsh ~/claude/bootstrap.ps1
 | 종류 | 내용 |
 |---|---|
 | 핵심 플러그인 | `superpowers`, `gg-skills`, `mattpocock-skills` (실패하면 중단) |
-| 보완 플러그인 | `agentic-eng-toolkit`(위키 스킬), `ponytail`, `ui-ux-pro-max`, `claude-mem`, `task-observer`, `codex`, `headroom`, `dev-browser`, `agent-skills`(CI/CD·API 설계·마이그레이션·ADR), `document-skills`(docx·pdf·pptx·xlsx), `claude-api`, `obsidian` |
+| 보완 플러그인 | `ponytail`, `ui-ux-pro-max`, `claude-mem`, `task-observer`, `codex`, `headroom`, `dev-browser`, `agent-skills`(CI/CD·API 설계·마이그레이션·ADR), `document-skills`(docx·pdf·pptx·xlsx), `claude-api`, `obsidian` |
 | 보안 플러그인 | Trail of Bits 9종 (`differential-review`, `insecure-defaults`, `static-analysis` 등) |
 | 단일 스킬 | `grill-me`, `refactoring-ui` |
 | 스킬 모음 | `jha0313/skills_repo`(`ai-readiness-cartography`, `improve-token-efficiency`, `eval-writer`, `skill-evaluator`, `workflow-orchestrator`, `presentation_slides`)를 받아 `~/.claude/skills`에 연결. 라이선스 표기가 없어 이 저장소에 복사하지 않음. `skill-evaluator`는 `uv`와 Python 3.11+ 필요 |
