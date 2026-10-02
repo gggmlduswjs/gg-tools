@@ -27,6 +27,8 @@ pwsh ~/claude/bootstrap.ps1
 
 `bootstrap.ps1`은 여러 번 실행해도 안전하며(멱등) **`plugins.json`에 적힌 것**을 설치합니다. 도구를 더하거나 빼려면 그 파일만 고칩니다. `-DryRun`을 붙이면 아무것도 바꾸지 않고 실행할 명령만 보여 줍니다.
 
+superpowers 등 `plugins.json`에 있는 플러그인은 직접 설치하지 말고 bootstrap 으로 설치하세요(마켓플레이스가 다르면 중복 설치됩니다).
+
 | 종류 | 내용 |
 |---|---|
 | 핵심 플러그인 | `superpowers`, `gg-skills`, `mattpocock-skills` (실패하면 중단) |

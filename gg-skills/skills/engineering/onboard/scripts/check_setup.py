@@ -52,6 +52,28 @@ def run(cmd, timeout=30):
         return 1, str(e)
 
 
+def check_dup_plugins(reg_path, cfg_path):
+    """같은 플러그인 이름이 다른 마켓플레이스로 이중 설치됐는지 본다. 파일이 없거나 형식이 다르면 [](조용히 통과)."""
+    try:
+        ids = list(json.load(open(reg_path, encoding="utf-8"))["plugins"].keys())
+    except Exception:
+        return []
+    try:
+        canon = {p["id"] for p in json.load(open(cfg_path, encoding="utf-8"))["plugins"]}
+    except Exception:
+        canon = set()
+    by_name = {}
+    for i in ids:
+        if isinstance(i, str) and "@" in i:
+            by_name.setdefault(i.split("@", 1)[0], []).append(i)
+    notes = []
+    for name, group in sorted(by_name.items()):
+        if len(group) > 1:
+            keep = [g for g in group if g in canon]
+            notes.append(" · ".join(group) + (" — plugins.json 정본(마켓플레이스)만 남기세요: " + keep[0] if keep else ""))
+    return [("PC", "플러그인 중복 설치", WARN if notes else OK, "; ".join(notes) if notes else "중복 없음")]
+
+
 def check_pc():
     rows = []
     for tool, arg in (("git", "--version"), ("gh", "--version"), ("python", "--version"), ("claude", "--version")):
@@ -74,6 +96,7 @@ def check_pc():
                      "모두 설치됨" if not missing else "미설치: " + ", ".join(missing) + " → pwsh ~/claude/bootstrap.ps1"))
     except Exception as e:
         rows.append(("PC", "플러그인", WARN, f"등록부를 읽지 못함({e})"))
+    rows += check_dup_plugins(reg_path, cfg_path)
     engine = os.path.join(HOME, "claude", "gg-skills", "hooks", "guardrail.py")
     if os.path.exists(engine):
         code, out = run([sys.executable, engine, "--selftest"])
@@ -310,6 +333,8 @@ def main(argv):
 def selftest():
     import shutil
     import tempfile
+    for k in [k for k in os.environ if k.startswith("GIT_")]:  # pre-commit 훅의 GIT_DIR·INDEX 가 임시 저장소 검사를 현재 저장소로 새게 한다
+        del os.environ[k]
     t = "projects:\n  - ~/a  # 주석\nrepos:\n  - x/y\n\nwikis:\n"
     got = parse_sources(t)
     assert got == {"projects": ["~/a"], "repos": ["x/y"], "wikis": []}, got
@@ -334,6 +359,17 @@ def selftest():
             _, res, _ = classify(d)
             assert res["참조됨"] == ["n.txt"] and res["확인"] == ["o.md"], res
         assert "합계" in report([("PC", "x", OK, "")])
+        reg, cfg = os.path.join(d, "reg.json"), os.path.join(d, "cfg.json")
+        json.dump({"plugins": [{"id": "a@m1"}]}, open(cfg, "w"))
+        for body, want in (('{"plugins":{"a@m1":[],"a@m2":[],"b@m1":[]}}', WARN), ('{"plugins":{"a@m1":[],"b@m1":[]}}', OK),
+                           ('[1,2]', None), ('not json', None)):
+            open(reg, "w").write(body)
+            r = check_dup_plugins(reg, cfg)
+            assert (r[0][2] if r else None) == want, (body, r)
+        open(reg, "w").write('{"plugins":{"a@m1":[],"a@m2":[]}}')
+        note = check_dup_plugins(reg, cfg)[0][3]
+        assert "a@m1 · a@m2" in note and "정본" in note, note
+        assert check_dup_plugins(os.path.join(d, "none.json"), cfg) == []
     finally:
         shutil.rmtree(d, ignore_errors=True)
     print("onboard check_setup selftest OK")

@@ -28,6 +28,7 @@ description: 새 PC나 새 프로젝트에서 개발 환경이 준비됐는지 �
 | GitHub 로그인 안 됨 | 사용자가 직접 `gh auth login` |
 | gg-tools 클론 없음 | `gh repo clone gggmlduswjs/gg-tools ~/claude` |
 | 플러그인 미설치 | `pwsh ~/claude/bootstrap.ps1` (여러 번 실행해도 안전, `-DryRun`으로 미리 보기) |
+| 플러그인 중복 설치(같은 이름·다른 마켓플레이스) | 정본이 아닌 쪽 `claude plugin uninstall <id>` (사용자 승인 후) |
 | 차단 엔진 실패 | gg-tools 위치가 `~/claude`인지 확인 |
 | 프로젝트에 CLAUDE.md·docs/PRD.md 없음 | harness 틀(`ai-dev-harness`)로 만든 프로젝트가 아니다. 새 프로젝트면 `docs/guides/0-start-project.md`, 기존 프로젝트면 `docs/ADOPTION.md` |
 | CLAUDE.md 200줄 초과 | 줄이거나 `docs/`로 링크 |
