@@ -22,6 +22,12 @@ if (Test-Path $registry) {
 
 Write-Host "== Claude Code 사용자 스코프 플러그인 ==" -ForegroundColor Cyan
 $cfg = Get-Content -LiteralPath (Join-Path $PSScriptRoot '../plugins.json') -Raw -Encoding UTF8 | ConvertFrom-Json
+# plugins.json 자체 점검: 플러그인이 가리키는 marketplace 가 목록에 선언돼 있어야 한다(공식 제외).
+$declared = @($cfg.marketplaces | ForEach-Object { $_.name }) + 'claude-plugins-official'
+foreach ($pl in $cfg.plugins) {
+  $m = ($pl.id -split '@')[1]
+  if ($declared -notcontains $m) { $issues++; Write-Warning "plugins.json: marketplace 미선언 — $($pl.id)" }
+}
 foreach ($id in @($cfg.plugins | ForEach-Object { $_.id })) {
   $entry = if ($installed) { $installed.PSObject.Properties[$id] } else { $null }
   $scopes = @()
