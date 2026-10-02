@@ -8,6 +8,7 @@
   python check_setup.py --structure           # + 프로젝트 구조 점검(sources.yaml 에 structure_check: true 로도 켬)
   python check_setup.py --structure --full    # 구조 밖 파일 전체 목록
   python check_setup.py --structure --deep    # 참조 검사 상한(2000개) 해제
+  python check_setup.py --catalog             # + 강의 적용 카탈로그 점검(sources.yaml 에 catalog: true 로도 켬)
   python check_setup.py --selftest
 
 대상 목록 기본 위치: ~/.claude/onboard/sources.yaml (예시: ../config/sources.example.yaml)
@@ -270,6 +271,114 @@ def check_structure(path, full=False, deep=False):
     return [("구조", path, OK if not miss and not n else WARN, row)], "\n".join(lines)
 
 
+# ---- 강의 적용 카탈로그 점검(--catalog): config/harness-catalog.json 의 detect 를 매번 계산, 읽기 전용 ----
+SKIP = "건너뜀"
+CATALOG = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "config", "harness-catalog.json")
+KINDS = {"file_exists": ("path",), "file_contains": ("path", "pattern"), "plugin_installed": ("id",),
+         "setting_present": ("file", "key_path"), "manual": ("question",)}
+
+
+def _path(p, root, home):
+    if p.startswith("~"):
+        return os.path.join(home, p[1:].lstrip("/\\"))
+    return os.path.join(root or home, p)
+
+
+def _dig(d, key_path):
+    for k in key_path.split("."):
+        if not isinstance(d, dict) or k not in d:
+            return None
+        d = d[k]
+    return d
+
+
+def eval_detect(d, root, home):
+    """(충족 여부, 비고). 모르는 kind·형식 오류·manual·못 읽음은 전부 False — OK 로 통과시키지 않는다."""
+    try:
+        kind, a = d["kind"], d["args"]
+        if kind not in KINDS:
+            return False, f"모르는 detect kind: {kind}"
+        if any(not isinstance(a.get(k), str) or not a[k] for k in KINDS[kind]):
+            return False, f"{kind} 인자 형식 오류"
+        if kind == "manual":
+            return False, "사람 확인: " + a["question"]
+        if kind == "plugin_installed":
+            have = json.load(open(os.path.join(home, ".claude", "plugins", "installed_plugins.json"), encoding="utf-8")).get("plugins", {})
+            return a["id"] in have, "" if a["id"] in have else f"플러그인 미설치: {a['id']}"
+        if kind == "setting_present":
+            if a["file"] not in ("user", "project") or (a["file"] == "project" and not root):
+                return False, "setting_present file 형식 오류"
+            f = os.path.join(home, ".claude", "settings.json") if a["file"] == "user" else os.path.join(root, ".claude", "settings.json")
+            v = _dig(json.load(open(f, encoding="utf-8")), a["key_path"])
+            ok = v not in (None, "", [], {}) and (not a.get("contains") or a["contains"].lower() in json.dumps(v, ensure_ascii=False).lower())
+            return ok, "" if ok else f"settings {a['key_path']} 없음"
+        f = _path(a["path"], root, home)
+        if kind == "file_exists":
+            return os.path.exists(f), "" if os.path.exists(f) else f"없음: {a['path']}"
+        if not os.path.isfile(f):
+            return False, f"없음: {a['path']}"
+        ok = re.search(a["pattern"], open(f, encoding="utf-8", errors="replace").read(), re.I | re.M) is not None
+        return ok, "" if ok else f"{a['path']} 에 '{a['pattern']}' 없음"
+    except Exception as e:  # 파일 없음·JSON 오류·정규식 오류·키 누락
+        return False, f"판정 불가({type(e).__name__})"
+
+
+def eval_item(it, root, home):
+    """(상태, 비고). 순서: deferred → retire_when → detect(+hold)."""
+    if it.get("deferred"):
+        return SKIP, "보류(과함): " + str(it["deferred"])
+    rw = it.get("retire_when")
+    if isinstance(rw, list) and rw and all(eval_detect(d, root, home)[0] for d in rw):
+        return SKIP, "졸업(retire_when 충족)"
+    det = it.get("detect")
+    if not isinstance(det, list) or not det:
+        return WARN, "detect 형식 오류(비었거나 배열 아님)"
+    res = [eval_detect(d, root, home) for d in det]
+    if all(r[0] for r in res):
+        return OK, ""
+    notes = [r[1] for r in res if not r[0]]
+    if it.get("hold"):
+        notes.insert(0, "보류: " + str(it["hold"]))
+    return WARN, "; ".join(notes)
+
+
+def check_catalog(cat_path, projects, home=HOME):
+    """[(id, 우선순위, 항목, 대상, 상태, 비고)]. 못 읽은 카탈로그·형식 오류는 '확인' 한 줄."""
+    try:
+        items = json.load(open(cat_path, encoding="utf-8"))["items"]
+        assert isinstance(items, list)
+    except Exception as e:
+        return [("-", "상", "카탈로그", "-", WARN, f"카탈로그를 읽지 못함({type(e).__name__}) — {cat_path}")]
+    rows = []
+    for it in items:
+        if not isinstance(it, dict) or not isinstance(it.get("id"), str):
+            rows.append(("?", "상", "형식 오류 항목", "-", WARN, "id 없음·객체 아님"))
+            continue
+        base = (it["id"], it.get("priority") or "하", str(it.get("title", ""))[:60])
+        if it.get("scope") == "project" and not it.get("deferred"):
+            for p in projects:
+                root = expand(p)
+                st, note = (WARN, "폴더 없음") if not os.path.isdir(root) else eval_item(it, root, home)
+                rows.append(base + (os.path.basename(root.rstrip("/\\")) or p, st, note))
+        elif it.get("scope") in ("pc", "project"):
+            rows.append(base + ("PC" if it["scope"] == "pc" else "(전체)",) + eval_item(it, None, home))
+        else:
+            rows.append(base + ("-", WARN, "scope 형식 오류(pc|project)"))
+    return rows
+
+
+def report_catalog(rows):
+    n = lambda s: sum(1 for r in rows if r[4] == s)
+    lines = ["### 강의 적용 카탈로그 (읽기 전용 · apply 는 안내일 뿐 설치·수정하지 않음)",
+             "| ID | 우선순위 | 항목 | 대상 | 상태 | 비고 |", "|---|---|---|---|---|---|"]
+    lines += [f"| {r[0]} | {r[1]} | {r[2]} | {r[3]} | {r[4]} | {r[5]} |" for r in rows]
+    lines.append(f"\n전체 {len(rows)} · OK {n(OK)} · 확인 {n(WARN)} · 건너뜀 {n(SKIP)}")
+    top = [r for r in rows if r[4] == WARN and r[1] == "상"]
+    lines.append(f"우선순위 상 확인 {len(top)}개" + (" (상위 10개)" if len(top) > TOP_N else ""))
+    lines += [f"  · {r[0]} {r[2]} @ {r[3]} — {r[5]}" for r in top[:TOP_N]]
+    return "\n".join(lines)
+
+
 def check_wiki(path):
     p = expand(path)
     if not os.path.isdir(p):
@@ -318,10 +427,13 @@ def main(argv):
         src = expand(argv[argv.index("--sources") + 1])
     rows = check_pc()
     structure, details = "--structure" in argv, []
+    catalog, projects = "--catalog" in argv, []
     if os.path.exists(src):
         text = open(src, encoding="utf-8").read()
         cfg = parse_sources(text)
+        projects = cfg.get("projects", [])
         structure = structure or bool(re.search(r"^structure_check:\s*true", text, re.M | re.I))
+        catalog = catalog or bool(re.search(r"^catalog:\s*true", text, re.M | re.I))
         for p in cfg.get("projects", []):
             rows += check_project(p)
             if structure:
@@ -344,6 +456,11 @@ def main(argv):
     for d in details:
         print()
         print(d)
+    if catalog:
+        print()
+        print(report_catalog(check_catalog(CATALOG, projects)))
+        if not projects:
+            print("(projects 없음 — 프로젝트 항목은 점검하지 못했다)")
 
 
 def selftest():
@@ -399,6 +516,64 @@ def selftest():
         note = check_dup_plugins(reg, cfg)[0][3]
         assert "a@m1 · a@m2" in note and "정본" in note, note
         assert check_dup_plugins(os.path.join(d, "none.json"), cfg) == []
+        # 카탈로그: 가짜 홈·가짜 프로젝트로 충족·미충족·모르는 kind·형식 오류·hold·deferred·retire_when
+        home, proj = os.path.join(d, "home"), os.path.join(d, "proj")
+        os.makedirs(os.path.join(home, ".claude", "plugins")); os.makedirs(os.path.join(proj, ".claude"))
+        json.dump({"plugins": {"p@m": []}}, open(os.path.join(home, ".claude", "plugins", "installed_plugins.json"), "w"))
+        json.dump({"permissions": {"deny": ["Read(.env)"]}, "hooks": {}}, open(os.path.join(home, ".claude", "settings.json"), "w"))
+        open(os.path.join(proj, "a.md"), "w").write("hello Guardrail")
+        fe = lambda p: {"kind": "file_exists", "args": {"path": p}}
+        fc = lambda p, t: {"kind": "file_contains", "args": {"path": p, "pattern": t}}
+        sp = lambda k, c=None: {"kind": "setting_present", "args": {"file": "user", "key_path": k, **({"contains": c} if c else {})}}
+        mk = lambda i, det, scope="project", **kw: {"id": i, "scope": scope, "priority": "상", "title": i, "detect": det, **kw}
+        cat = {"items": [
+            mk("ok", [fe("a.md"), fc("a.md", "guardrail")]),                        # 모두 충족 -> OK (대소문자 무시)
+            mk("miss", [fe("a.md"), fe("none.md")]),                                # 하나 미충족 -> 확인
+            mk("kind", [{"kind": "cmd", "args": {"x": "1"}}]),                      # 모르는 kind -> 확인
+            mk("args", [{"kind": "file_exists", "args": {}}]),                      # 인자 누락 -> 확인
+            mk("empty", []), mk("notlist", {"kind": "file_exists"}),                # 형식 오류 -> 확인
+            mk("badre", [fc("a.md", "(")]),                                         # 정규식 오류 -> 확인
+            mk("man", [fe("a.md"), {"kind": "manual", "args": {"question": "q?"}}]),  # manual -> 확인
+            mk("hold", [fe("none.md")], hold="결정 대기"),                          # hold 미충족 -> 확인+보류
+            mk("holdok", [fe("a.md")], hold="결정 대기"),                           # hold 라도 충족이면 OK
+            mk("def", [fe("a.md")], deferred="과함"),                               # deferred -> 건너뜀(프로젝트별 아닌 1줄)
+            mk("ret", [fe("none.md")], retire_when=[fe("a.md")]),                   # retire 충족 -> 건너뜀
+            mk("ret2", [fe("none.md")], retire_when=[fe("none.md")]),               # retire 미충족 -> detect 평가
+            mk("plug", [{"kind": "plugin_installed", "args": {"id": "p@m"}}], "pc"),
+            mk("plug2", [{"kind": "plugin_installed", "args": {"id": "q@m"}}], "pc"),
+            mk("set", [sp("permissions.deny", "read(.env)")], "pc"),
+            mk("sethooks", [sp("hooks")], "pc"),                                    # 빈 {} 는 없음
+            mk("home", [fe("~/.claude/settings.json")], "pc"),
+            {"id": "noscope", "detect": [fe("a.md")]}, 5,                           # scope 없음·객체 아님 -> 확인
+        ]}
+        cp = os.path.join(d, "cat.json")
+        json.dump(cat, open(cp, "w"))
+        got = {r[0]: r[4:] for r in check_catalog(cp, [proj], home)}
+        want = {"ok": OK, "miss": WARN, "kind": WARN, "args": WARN, "empty": WARN, "notlist": WARN, "badre": WARN, "man": WARN,
+                "hold": WARN, "holdok": OK, "def": SKIP, "ret": SKIP, "ret2": WARN, "plug": OK, "plug2": WARN, "set": OK,
+                "sethooks": WARN, "home": OK, "noscope": WARN, "?": WARN}
+        assert {k: v[0] for k, v in got.items()} == want, got
+        assert "모르는 detect kind" in got["kind"][1] and "보류: 결정 대기" in got["hold"][1] and "사람 확인" in got["man"][1], got
+        rows = check_catalog(cp, [proj, os.path.join(d, "nodir")], home)
+        assert sum(1 for r in rows if r[0] == "ok") == 2 and any(r[3] == "nodir" and r[4] == WARN for r in rows)
+        # 못 읽은 카탈로그·형식 오류는 OK 가 아니라 확인
+        for bad in (os.path.join(d, "none.json"), cp + ".x"):
+            open(cp + ".x", "w").write('{"items": 3}')
+            r = check_catalog(bad, [proj], home)
+            assert len(r) == 1 and r[0][4] == WARN, r
+        open(cp + ".x", "w").write("not json")
+        assert check_catalog(cp + ".x", [], home)[0][4] == WARN
+        txt = report_catalog(rows)
+        assert f"전체 {len(rows)} · OK " in txt and "건너뜀" in txt and "우선순위 상 확인" in txt
+        many = [(f"i{n}", "상", "t", "p", WARN, "") for n in range(12)]
+        assert report_catalog(many).count("  · i") == TOP_N
+        # 실제 카탈로그: 알려진 kind·필수 인자·id 유일·상태 필드 없음(오타가 조용히 '확인'으로 남는 것을 막는다)
+        items = json.load(open(CATALOG, encoding="utf-8"))["items"]
+        assert len({i["id"] for i in items}) == len(items) and items
+        for i in items:
+            assert i["scope"] in ("pc", "project") and i["detect"] and not {"status", "status_note"} & set(i), i["id"]
+            for x in i["detect"] + (i.get("retire_when") or []):
+                assert x["kind"] in KINDS and all(k in x["args"] for k in KINDS[x["kind"]]), (i["id"], x)
     finally:
         shutil.rmtree(d, ignore_errors=True)
     print("onboard check_setup selftest OK")

@@ -4,6 +4,7 @@
 # 형식: 키 아래에 "- 값" 목록만 쓴다(주석은 # 로 시작).
 
 structure_check: false   # true 면 projects 마다 구조 점검(문서 정리 후보)도 실행(--structure 와 같음)
+catalog: false           # true 면 강의 적용 카탈로그(harness-catalog.json)도 점검(--catalog 와 같음, 읽기 전용)
 
 projects:        # 내 로컬 프로젝트 폴더 (harness 틀로 만든 것)
   - ~/Desktop/my-project

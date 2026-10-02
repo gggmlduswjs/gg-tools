@@ -9,6 +9,7 @@ description: 새 PC나 새 프로젝트에서 개발 환경이 준비됐는지 �
 
 이 스킬의 구성(단일 기준 + 스크립트):
 - `config/sources.example.yaml` — 점검 대상 목록의 예시. 실제 목록은 `~/.claude/onboard/sources.yaml`(개인 경로가 들어가므로 공개 저장소에 두지 않는다)
+- `config/harness-catalog.json` — 강의 적용 카탈로그(`--catalog` 가 읽는 정책 목록. 포함 기준·필드는 파일 상단 `_doc`)
 - `scripts/check_setup.py` — 점검 스크립트(표준 라이브러리만, 읽기 전용)
 
 ## 절차
@@ -39,11 +40,14 @@ description: 새 PC나 새 프로젝트에서 개발 환경이 준비됐는지 �
 
 4-1. **프로젝트 구조 점검(선택).** 낡은 문서를 가려내고 싶을 때만 `python scripts/check_setup.py --structure`(또는 sources.yaml에 `structure_check: true`)를 돌린다. 프로젝트마다 `git ls-files` 기준으로 harness 틀(CLAUDE.md·docs/·.dev/·_brain/) 존재 여부를 보이고, 틀 밖 문서성 파일을 `참조됨`(코드·훅·문서가 경로를 인용 — 이동 금지) / `낡은 후보`(참조 0건·180일 이상 미수정) / `확인`으로 나눠 개수·폴더별 집계·상위 10개를 보여 준다. `--full`은 전체 목록, `--deep`은 후보 2000개 초과 때 참조 검사 상한 해제. 참조는 경로 기준이다: 전체 경로, 또는 상위 폴더 1~2단계를 붙인 부분 경로(추적 파일 중 유일할 때만)가 다른 파일에 인용되면 인정하고, 파일명만 인용된 경우는 그 이름이 유일할 때만 인정한다(index.html·README 같은 중복 이름은 제외). 결과는 로컬 체크아웃(브랜치) 기준이다. **보고만 하고 삭제·이동·수정은 하지 않는다.**
 
+4-2. **강의 적용 카탈로그 점검(선택).** 강의에서 나온 하네스·가드레일·문서 규칙이 이 PC와 프로젝트에 적용됐는지 보고 싶을 때만 `python scripts/check_setup.py --catalog`(또는 sources.yaml에 `catalog: true`)를 돌린다. `config/harness-catalog.json`의 항목마다 detect(파일 존재·파일 문구·플러그인 설치·settings 키·사람 확인)를 그때그때 계산해 `OK`(전부 충족) / `확인`(미충족·판정 불가) / `건너뜀`(졸업·과함 보류)으로 표를 내고, 끝에 `전체 N · OK N · 확인 N · 건너뜀 N` 요약과 우선순위 상 `확인` 상위 10개를 보인다. 파일·문구 점검은 sources.yaml의 프로젝트마다, 플러그인·settings는 PC 전역 기준이다. 모르는 detect 종류·읽지 못한 카탈로그·형식 오류·`manual`(사람이 답할 질문)은 `OK`가 아니라 `확인`이다. **읽기 전용이다.** 항목의 apply는 사용자에게 보여 줄 안내 문구일 뿐 스크립트가 설치·수정하지 않으며, 실제 설치·수정은 사용자 승인 뒤 별도 작업으로 한다. `requires_approval` 항목(permissions.deny·bypass 차단·전역 guardrail 배선)과 전역 settings 변경은 특히 승인 없이 건드리지 않는다. 카탈로그에는 상태를 적지 않는다(점검이 매번 계산).
+
 5. **마무리.** 모두 `OK`면 "준비됨"과 함께 다음 할 일을 한 줄로 안내한다: 새 프로젝트면 PRD 작성(`0-start-project.md`), 기존 프로젝트면 하루 루프(`2-daily-loop-and-second-brain.md`), 어떤 스킬을 언제 쓸지는 `3-when-to-use-skills.md`.
 
 ## 하지 않는 것
 
 - 승인 없이 설치·수정·삭제·clone
 - 로그인·키·비밀번호 입력, 계정 생성
+- 전역 settings(`~/.claude/settings.json`) 자동 수정 — 카탈로그 점검은 읽기만 하고, 값은 제안만 한다
 - 목록에 없는 폴더를 뒤지거나 개인 파일 내용을 읽는 것(존재 여부와 위 표의 항목만 본다)
 - 시맨틱 인덱스·그래프 DB 구축(1인 규모에는 과함. 대상이 수십 개 저장소로 커지면 별도 설계)
