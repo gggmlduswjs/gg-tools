@@ -117,3 +117,17 @@ self-test: `python ~/claude/gg-skills/hooks/memory_link.py --selftest` (8 cases)
 > 로컬에만 쌓아둔 메모리가 사라진다. 빈 폴더일 때만 링크로 바꾼다.
 > ⚠️ 옛 전역 훅은 `if(Test-Path $m){exit}` 라 **빈 폴더가 있으면 영영 안 이었다** —
 > 링크가 끊긴 바로 그 상태를 통과시키는 조건이었다.
+
+## secret_guard.py
+
+PreToolUse(`Write|Edit|MultiEdit`) — 파일에 시크릿(접두어가 있는 API 키·토큰, 개인키 블록)이 박히려 하면 **확인을 요청**한다(차단 아님). `.example`·`.sample`·`.template` 파일은 통과.
+프로젝트 `.claude/settings.json`에서 직접 켠다. 엔진이 없는 PC에서 `python`이 "파일 없음"(exit 2)으로 쓰기를 막지 않도록, 켤 때는 guardrail처럼 shim으로 감싼다.
+
+self-test: `python ~/claude/gg-skills/hooks/secret_guard.py --selftest` (10 cases)
+
+## tdd_guard.py
+
+PreToolUse(`Write|Edit|MultiEdit`) — 구현 파일(.py .ts .tsx .js .jsx .vue)을 고치려는데 프로젝트 안에 대응하는 테스트 파일(`test_<이름>.py` `<이름>.test.*` `<이름>.spec.*` 등)이 없으면 **확인을 요청**한다. 테스트 통과 여부는 보지 않는다.
+**기본은 꺼짐.** 프로젝트가 직접 켠다.
+
+self-test: `python ~/claude/gg-skills/hooks/tdd_guard.py --selftest` (10 cases)
