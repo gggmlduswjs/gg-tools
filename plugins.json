@@ -46,6 +46,18 @@
       "repo": "jha0313/agentic-eng-plugin"
     },
     {
+      "name": "addy-agent-skills",
+      "repo": "addyosmani/agent-skills"
+    },
+    {
+      "name": "anthropic-agent-skills",
+      "repo": "anthropics/skills"
+    },
+    {
+      "name": "obsidian-skills",
+      "repo": "kepano/obsidian-skills"
+    },
+    {
       "name": "anthropic-cybersecurity-skills",
       "repo": "mukul975/Anthropic-Cybersecurity-Skills"
     }
@@ -83,6 +95,18 @@
     },
     {
       "id": "dev-browser@dev-browser-marketplace"
+    },
+    {
+      "id": "agent-skills@addy-agent-skills"
+    },
+    {
+      "id": "document-skills@anthropic-agent-skills"
+    },
+    {
+      "id": "claude-api@anthropic-agent-skills"
+    },
+    {
+      "id": "obsidian@obsidian-skills"
     },
     {
       "id": "agentic-eng-toolkit@agentic-eng"
