@@ -130,6 +130,9 @@
     },
     {
       "id": "audit-context-building@trailofbits"
+    },
+    {
+      "id": "claude-md-management@claude-plugins-official"
     }
   ],
   "optionalPlugins": [
