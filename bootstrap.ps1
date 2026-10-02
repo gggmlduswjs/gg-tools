@@ -36,6 +36,12 @@ if (-not $DryRun -and -not (Get-Command claude -ErrorAction SilentlyContinue)) {
   throw "Claude Code 명령 'claude'를 찾을 수 없다. Claude Code를 먼저 설치한 뒤 새 PowerShell 창에서 다시 실행해라."
 }
 
+# 일부 플러그인은 소스를 SSH 주소(git@github.com:)로 선언한다. SSH 키가 없는 새 PC 에서는
+# 설치가 실패하므로, HTTPS(gh 로그인)로 바꿔 받게 한다. 이미 있으면 건너뛴다.
+if (-not $DryRun -and -not (git config --global --get-all url.https://github.com/.insteadOf)) {
+  git config --global url."https://github.com/".insteadOf "git@github.com:"
+}
+
 Write-Host "`n== 마켓플레이스 ==" -Fore Cyan
 $failedMp = @{}
 foreach ($mp in $cfg.marketplaces) {
