@@ -333,6 +333,8 @@ def main(argv):
 def selftest():
     import shutil
     import tempfile
+    for k in [k for k in os.environ if k.startswith("GIT_")]:  # pre-commit 훅의 GIT_DIR·INDEX 가 임시 저장소 검사를 현재 저장소로 새게 한다
+        del os.environ[k]
     t = "projects:\n  - ~/a  # 주석\nrepos:\n  - x/y\n\nwikis:\n"
     got = parse_sources(t)
     assert got == {"projects": ["~/a"], "repos": ["x/y"], "wikis": []}, got
