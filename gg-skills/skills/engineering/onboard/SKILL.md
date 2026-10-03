@@ -11,6 +11,7 @@ description: 새 PC나 새 프로젝트에서 개발 환경이 준비됐는지 �
 - `config/sources.example.yaml` — 점검 대상 목록의 예시. 실제 목록은 `~/.claude/onboard/sources.yaml`(개인 경로가 들어가므로 공개 저장소에 두지 않는다)
 - `config/harness-catalog.json` — 강의 적용 카탈로그(`--catalog` 가 읽는 정책 목록. 포함 기준·필드는 파일 상단 `_doc`)
 - `scripts/check_setup.py` — 점검 스크립트(표준 라이브러리만, 읽기 전용)
+- `references/adopt-playbook.md`·`references/decision-questionnaire.md` — 기존 프로젝트 도입 절차와 결정 질문서(아래 4-4)
 
 ## 절차
 
@@ -42,7 +43,14 @@ description: 새 PC나 새 프로젝트에서 개발 환경이 준비됐는지 �
 
 4-2. **강의 적용 카탈로그 점검(선택).** 강의에서 나온 하네스·가드레일·문서 규칙이 이 PC와 프로젝트에 적용됐는지 보고 싶을 때만 `python scripts/check_setup.py --catalog`(또는 sources.yaml에 `catalog: true`)를 돌린다. `config/harness-catalog.json`의 항목마다 detect(파일 존재·파일 문구·플러그인 설치·settings 키·사람 확인)를 그때그때 계산해 `OK`(전부 충족) / `확인`(미충족·판정 불가) / `건너뜀`(졸업·과함 보류)으로 표를 내고, 끝에 `전체 N · OK N · 확인 N · 건너뜀 N` 요약과 우선순위 상 `확인` 상위 10개를 보인다. 파일·문구 점검은 sources.yaml의 프로젝트마다, 플러그인·settings는 PC 전역 기준이다. 모르는 detect 종류·읽지 못한 카탈로그·형식 오류·`manual`(사람이 답할 질문)은 `OK`가 아니라 `확인`이다. **읽기 전용이다.** 항목의 apply는 사용자에게 보여 줄 안내 문구일 뿐 스크립트가 설치·수정하지 않으며, 실제 설치·수정은 사용자 승인 뒤 별도 작업으로 한다. `requires_approval` 항목(permissions.deny·bypass 차단·전역 guardrail 배선)과 전역 settings 변경은 특히 승인 없이 건드리지 않는다. 카탈로그에는 상태를 적지 않는다(점검이 매번 계산).
 
-4-3. **기존 프로젝트 개편 계획서 초안(`--adopt`)과 영향 조회(`--impact`, 선택).** 이미 운영 중인 프로젝트에 harness 틀을 입힐 때만 쓴다. `python scripts/check_setup.py --adopt <프로젝트경로|sources.yaml 의 프로젝트 이름>` 은 적용 계획서 초안(마크다운)을 stdout 으로 낸다(`--out <경로>` 를 주면 새 파일로만 쓰고, 이미 있거나 대상 프로젝트 안이면 거부). 섹션: 전제 요약 · 현황(구조·카탈로그 상 확인·CLAUDE.md/AGENTS.md 줄 수·.claude 현황·새 hook 과 경로 충돌) · 코드·폴더 레이아웃(권장과 어긋나면 `[ 사람이 매핑표 작성 ]`) · 도메인 CLAUDE.md 후보(`--min-files N`, 기본 10)와 낡은 하위 CLAUDE.md 제목 · 프로젝트 규칙 인용(줄 번호 포함, 계획의 제약) · 단계별 PR 순서 골격(승인 지점·검증·롤백은 빈칸) · 사람이 결정할 질문. 자동으로 알 수 없는 것(서버 유닛, DB 에 저장된 경로, Linear 이슈 내 경로)은 `미확인` 으로 적는다. `python scripts/check_setup.py --impact <경로|모듈문자열> [--project <프로젝트>] [--full]` 은 `git ls-files` 기준으로 그 문자열을 담은 파일·줄을 범주(코드·설정·CI/배포·문서·테스트)별로 세고 상위 폴더 분포·운영 접점(배포 워크플로·`*.spec`·pyproject/pytest.ini·systemd/cron) 걸림·상위 파일을 보인다. 결과는 **참조 수일 뿐 위험 판정이 아니며** 파일명 일치 기반이라 과대·과소일 수 있고, Linear·DB·서버의 실제 상태는 모른다. **둘 다 읽기 전용이고 이름·폴더 변경과 로직 변경은 스킬이 제안·실행하지 않는다.** 그런 변경은 `--impact` 결과를 사람이 보고 결정한 뒤, 승인 후 별도로 superpowers 계획(`writing-plans`)과 서브에이전트 실행 스킬로 진행한다. 프로젝트 정본 규칙(CLAUDE.md·AGENTS.md)이 harness 지침보다 우선한다.
+4-3. **기존 프로젝트 개편 계획서 초안(`--adopt`)과 영향 조회(`--impact`, 선택).** 이미 운영 중인 프로젝트에 harness 틀을 입힐 때만 쓴다. `python scripts/check_setup.py --adopt <프로젝트경로|sources.yaml 의 프로젝트 이름>` 은 적용 계획서 초안(마크다운)을 stdout 으로 낸다(`--out <경로>` 를 주면 새 파일로만 쓰고, 이미 있거나 대상 프로젝트 안이면 거부). 섹션: 전제 요약 · 현황(구조·카탈로그 상 확인·CLAUDE.md/AGENTS.md 줄 수·.claude 현황·새 hook 과 경로 충돌) · 코드·폴더 레이아웃(권장과 어긋나면 `[ 사람이 매핑표 작성 ]`) · 도메인 CLAUDE.md 후보(`--min-files N`, 기본 10)와 낡은 하위 CLAUDE.md 제목 · 프로젝트 규칙 인용(줄 번호 포함, 계획의 제약) · 단계별 PR 순서 골격(승인 지점·검증·롤백은 빈칸) · 사람이 결정할 질문. 자동으로 알 수 없는 것(서버 유닛, DB 에 저장된 경로, Linear 이슈 내 경로)은 `미확인` 으로 적는다. `python scripts/check_setup.py --impact <경로|모듈문자열> [--project <프로젝트>] [--full]` 은 `git ls-files` 기준으로 그 문자열을 담은 파일·줄을 범주(코드·설정·CI/배포·문서·테스트)별로 세고 상위 폴더 분포·운영 접점(배포 워크플로·`*.spec`·pyproject/pytest.ini·systemd/cron) 걸림·상위 파일을 보인다. 결과는 **참조 수일 뿐 위험 판정이 아니며** 파일명 일치 기반이라 과대·과소일 수 있고, Linear·DB·서버의 실제 상태는 모른다. **둘 다 읽기 전용이고 이름·폴더 변경과 로직 변경은 스킬이 실행하지 않는다.** 그런 변경은 `--impact` 결과를 사람이 보고 결정한 뒤, 승인 후 별도로 superpowers 계획(`writing-plans`)과 서브에이전트 실행 스킬로 진행한다. 프로젝트 정본 규칙(CLAUDE.md·AGENTS.md)이 harness 지침보다 우선한다.
+
+4-4. **기존 프로젝트 도입(adopt, 선택).** 운영 중인 프로젝트를 하네스에 맞출 때, 단계마다 사용자에게 되묻지 않고 **계획을 한 번에 세우는** 절차다. 상세는 [references/adopt-playbook.md](references/adopt-playbook.md), 질문서는 [references/decision-questionnaire.md](references/decision-questionnaire.md).
+   1. **Step 0 측정:** `--catalog`·`--structure`·`--adopt` 를 돌리고 처음 측정값을 표로 기록해 둔다.
+   2. **Step 1 결정 질문서:** 프로젝트 규칙에서 인용한 후보 답을 채워 Q1~Q10 을 한 번에 묻고, 답을 계획서의 「고정 결정」 표로 박는다. 이후 이 표와 충돌할 때만 멈춰 묻는다.
+   3. **Step 2 계획서:** Phase 표(선행·병렬 가능·완료 기준·사람 결정 지점)로 PR 단위 계획을 만든다. 구조 변경 Phase 는 Q6 이 허용일 때만 넣는다.
+   4. **실행은 스킬이 하지 않는다.** 사용자가 승인한 뒤 에이전트나 사람이 PR 단위로 한다.
+   5. **마감:** 같은 명령을 다시 돌려 처음 측정값과 표로 비교한다. 완료는 스크립트가 선언하지 않고, 사람 확인 항목을 사용자가 확인해 선언한다.
 
 5. **마무리.** 모두 `OK`면 "준비됨"과 함께 다음 할 일을 한 줄로 안내한다: 새 프로젝트면 PRD 작성(`0-start-project.md`), 기존 프로젝트면 하루 루프(`2-daily-loop-and-second-brain.md`), 어떤 스킬을 언제 쓸지는 `3-when-to-use-skills.md`.
 
@@ -51,6 +59,7 @@ description: 새 PC나 새 프로젝트에서 개발 환경이 준비됐는지 �
 - 승인 없이 설치·수정·삭제·clone
 - 로그인·키·비밀번호 입력, 계정 생성
 - 전역 settings(`~/.claude/settings.json`) 자동 수정 — 카탈로그 점검은 읽기만 하고, 값은 제안만 한다
-- `--adopt`·`--impact` 로 대상 프로젝트 파일을 만들거나 고치는 것, 이름·폴더 변경이나 로직 변경을 스킬이 제안·실행하는 것(계획서에는 위험 안내와 "`--impact` 후 사람이 결정"만 둔다)
+- 스킬이 대상 프로젝트의 파일·폴더를 만들거나 고치거나 이동하는 것(`--adopt`·`--impact` 포함). 사용자가 질문서 Q6 에서 구조 변경을 허용했을 때만 계획서에 순서를 *제안*하고, 실행은 승인 후 별도 작업이다. 질문서 답이 없으면 구조 변경 단계를 계획에 넣지 않는다
+- 사람 확인 없이 도입 완료를 선언하는 것
 - 목록에 없는 폴더를 뒤지거나 개인 파일 내용을 읽는 것(존재 여부와 위 표의 항목만 본다)
 - 시맨틱 인덱스·그래프 DB 구축(1인 규모에는 과함. 대상이 수십 개 저장소로 커지면 별도 설계)
