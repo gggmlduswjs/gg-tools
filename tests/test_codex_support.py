@@ -3,6 +3,9 @@ import json
 from pathlib import Path
 import unittest
 import tempfile
+import os
+import shutil
+import subprocess
 from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -24,6 +27,29 @@ class PackageTests(unittest.TestCase):
             self.assertTrue((ROOT / 'gg-skills' / relative / 'SKILL.md').is_file())
         catalog = json.loads((ROOT / '.agents/plugins/marketplace.json').read_text(encoding='utf-8'))
         self.assertEqual(catalog['plugins'][0]['source']['path'], './gg-skills')
+
+    @unittest.skipUnless(shutil.which('pwsh'), 'PowerShell unavailable')
+    def test_installer_accepts_explicit_codex_executable_in_dry_run(self):
+        with tempfile.TemporaryDirectory() as directory:
+            executable = Path(directory) / 'desktop codex.exe'
+            executable.write_text('not executed in DryRun')
+            result = subprocess.run(['pwsh', '-NoProfile', '-File', str(ROOT / 'bootstrap-codex.ps1'),
+                                     '-DryRun', '-CodexExecutable', str(executable)],
+                                    capture_output=True, text=True, encoding='utf-8', errors='replace')
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertIn(str(executable), result.stdout)
+
+    @unittest.skipUnless(shutil.which('pwsh'), 'PowerShell unavailable')
+    def test_installer_prefers_desktop_bundle_over_path(self):
+        with tempfile.TemporaryDirectory() as directory:
+            executable = Path(directory) / 'OpenAI/Codex/bin/build/codex.exe'
+            executable.parent.mkdir(parents=True)
+            executable.write_text('not executed in DryRun')
+            result = subprocess.run(['pwsh', '-NoProfile', '-File', str(ROOT / 'bootstrap-codex.ps1'), '-DryRun'],
+                                    env=dict(os.environ, LOCALAPPDATA=directory),
+                                    capture_output=True, text=True, encoding='utf-8', errors='replace')
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertIn(str(executable), result.stdout)
 
 
 class HookTests(unittest.TestCase):

@@ -14,6 +14,8 @@ pwsh ./bootstrap-codex.ps1
 
 스크립트는 이 체크아웃을 marketplace로 등록하고 gg-skills만 설치한다. Codex marketplace 이름은 `gg-tools`다. 외부 `plugins.json` 목록은 Claude bootstrap 전용이며 이 스크립트는 설치하지 않는다. 이미 등록된 `gg-tools`가 다른 source를 가리키면 CLI 결과를 확인하고 사용할 source를 선택한다. 기존 marketplace를 자동 제거하지 않는다.
 
+Windows에서는 데스크톱 앱의 동봉 Codex 실행 파일을 우선한다(실행 중인 앱의 경로, 없으면 설치된 최신 파일). 없으면 PATH의 CLI를 사용한다. 설치에 사용한 경로를 출력하며 `-CodexExecutable '<실행 파일 경로>'`로 명시할 수도 있다. 검증 PC에서는 npm의 `codex` 명령이 캐시 활성화 단계에서 `os error 5`로 실패했고 앱 동봉 실행 파일로 같은 설정의 설치가 성공했다. 캐시 ACL·관리자 권한·hook trust 설정을 자동 변경하지 않는다. 다시 실패하면 출력된 실행 파일과 실제 오류를 먼저 확인한다.
+
 GitHub의 지원 변경이 들어간 ref에서도 설치할 수 있다:
 
 ```powershell
