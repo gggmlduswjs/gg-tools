@@ -241,6 +241,48 @@ def classify(p, deep=False):
     return present, res, False
 
 
+ONBOARD_CFG = ".onboard.yaml"  # 프로젝트 루트의 설정(사람/PR 로만 만든다. 스킬은 읽기만). 키 아래 '- 값  # 이유' 목록(parse_sources 형식)
+#   skip_structure: 의도적으로 두지 않는 기준 구조(예 docs/guides) — 보고에 '제외'와 사유로 표시
+
+
+def load_pcfg(p):
+    try:
+        return parse_sources(open(os.path.join(p, ONBOARD_CFG), encoding="utf-8").read())
+    except OSError:
+        return {}
+
+
+def skip_reasons(p):
+    """skip_structure 항목 → 사유('# ' 뒤 주석, 없으면 ''). parse_sources 가 주석을 버려 원문에서 다시 읽는다."""
+    out = {}
+    try:
+        txt = open(os.path.join(p, ONBOARD_CFG), encoding="utf-8").read()
+    except OSError:
+        return out
+    for k in load_pcfg(p).get("skip_structure", []):
+        m = re.search(r"^\s*-\s*" + re.escape(k) + r"\s*(?:#\s*(.*))?$", txt, re.M)
+        out[k] = (m.group(1) or "").strip() if m else ""
+    return out
+
+
+def tracked(p):
+    try:
+        return [f for f in git(p, "ls-files").stdout.splitlines() if f]
+    except Exception:  # git 없음
+        return []
+
+
+def locate(root, rel, files=None):
+    """rel 이 없으면 추적 파일 중 같은 이름이 유일할 때 그 위치를 돌려준다(폴더 개명 뒤 오탐 방지). 없으면 None."""
+    if os.path.exists(os.path.join(root, rel)):
+        return rel
+    base = os.path.basename(rel)
+    if not os.path.splitext(base)[1]:
+        return None
+    hits = [f for f in (tracked(root) if files is None else files) if os.path.basename(f) == base]
+    return hits[0] if len(hits) == 1 else None
+
+
 def check_structure(path, full=False, deep=False):
     """([표 행], 상세 텍스트). 읽기 전용: git ls-files·grep·log 만 쓴다."""
     import time
@@ -249,10 +291,14 @@ def check_structure(path, full=False, deep=False):
         return [("구조", path, WARN, "git 저장소 아님(건너뜀)")], ""
     t0 = time.time()
     present, res, capped = classify(p, deep)
-    miss = [k for k, v in present.items() if not v]
+    skip_why = skip_reasons(p)
+    skip = set(skip_why)
+    miss = [k for k, v in present.items() if not v and k not in skip]
     n = sum(len(v) for v in res.values())
     lines = [f"### 구조 점검: {path} (로컬 체크아웃 기준 · git 추적 파일 · {time.time() - t0:.1f}초)",
-             f"기준 구조 있음 {len(present) - len(miss)}/{len(present)} · 없음: " + (", ".join(miss) if miss else "(없음)")]
+             f"기준 구조 있음 {sum(present.values())}/{len(present)} · 없음: " + (", ".join(miss) if miss else "(없음)") +
+             (f" · 제외 {len(skip & set(present))}개(.onboard.yaml 선언)" if skip else "")]
+    lines += [f"제외: {k} — {skip_why[k] or '사유 미기재'}" for k in present if k in skip and not present[k]]
     if capped:
         lines.append(f"후보 {n}개가 상한 {DEEP_CAP}개를 넘어 참조·날짜 검사를 생략했다(전부 '확인'). --deep 으로 전체 검사")
     desc = {"참조됨": "구조 밖·참조됨(코드·훅·문서가 인용 — 함부로 이동 금지)",
@@ -315,8 +361,11 @@ def eval_detect(d, root, home):
             ok = v not in (None, "", [], {}) and (not a.get("contains") or a["contains"].lower() in json.dumps(v, ensure_ascii=False).lower())
             return ok, "" if ok else f"settings {a['key_path']} 없음"
         f = _path(a["path"], root, home)
+        moved = locate(root, a["path"]) if root and not os.path.exists(f) and not a["path"].startswith("~") else None
+        if moved:  # 폴더 개명·이동 뒤에도 같은 이름 파일이 유일하면 그 위치로 판정(검사기 경로 하드코딩 오탐 방지)
+            f = os.path.join(root, moved)
         if kind == "file_exists":
-            return os.path.exists(f), "" if os.path.exists(f) else f"없음: {a['path']}"
+            return os.path.exists(f), ("" if not moved else f"실제 위치 {moved}") if os.path.exists(f) else f"없음: {a['path']}"
         if not os.path.isfile(f):
             return False, f"없음: {a['path']}"
         ok = re.search(a["pattern"], open(f, encoding="utf-8", errors="replace").read(), re.I | re.M) is not None
@@ -337,7 +386,7 @@ def eval_item(it, root, home):
         return WARN, "detect 형식 오류(비었거나 배열 아님)"
     res = [eval_detect(d, root, home) for d in det]
     if all(r[0] for r in res):
-        return OK, ""
+        return OK, "; ".join(r[1] for r in res if r[1])  # 비고: 자동 탐색한 '실제 위치'만
     notes = [r[1] for r in res if not r[0]]
     if it.get("hold"):
         notes.insert(0, "보류: " + str(it["hold"]))
@@ -503,7 +552,7 @@ def build_adopt(path, min_files=10):
     # (0) 전제
     L += ["## 0. 전제 요약", "",
           "- 이 스크립트는 파일을 만들거나 고치지 않는다(대상 프로젝트 안에는 쓰지 않는다). 아래는 초안이다.",
-          "- **이름·폴더 변경과 로직 변경은 제안하지 않는다.** 후보가 생기면 `--impact`(참조 수 집계) 로 영향을 본 뒤 사람이 결정한다. "
+          "- **이름·폴더 변경과 로직 변경은 스킬이 실행하지 않는다.** 질문서 Q6 에서 사람이 허용했을 때만 순서를 제안하며, 먼저 `--impact`(참조 수 집계) 로 영향을 본 뒤 사람이 결정한다. "
           "참조 수는 위험 판정이 아니다.",
           f"- 이 스크립트가 모르는 것: 운영 서버 유닛·cron, DB 에 경로·모듈명이 저장되는지, Linear 이슈 안의 경로, 테스트 커버리지, 죽은 코드 — 전부 {UNK}.",
           "- 프로젝트 정본 규칙(CLAUDE.md·AGENTS.md)이 harness 지침보다 우선한다(4장 인용).", ""]
@@ -608,8 +657,8 @@ def build_adopt(path, min_files=10):
                  ("② docs 틀", "기준 구조(1-1 '없음' 목록)를 추가만 한다. 기존 docs 파일을 이동·삭제하지 않는다(코드가 읽는 파일일 수 있음 — '참조됨')"),
                  ("③ 위키 기반 문서 채우기", "PRD·ROADMAP·ARCHITECTURE·ADR 초안. **원본 위치는 사람이 지정**: `____`. 제품 범위·결정은 AI 가 단정하지 않는다"),
                  ("④ .claude hook", "CLAUDE.md 점검 hook 등(1-5 충돌 검토 반영). 프로젝트 정책과 충돌하는 hook 은 결정 전 제외"),
-                 ("⑤ 이름·폴더 변경 (별도)", "**위험: 참조·서버·배포·DB 에 저장된 경로가 깨질 수 있다.** `--impact` 로 영향 분석 후 사람이 결정. 이 스크립트는 제안·실행하지 않는다. 결정 시 항목마다 별도 PR"),
-                 ("⑥ 리팩토링 트랙 (분리)", "하네스 문서·hook PR 과 별도 트랙. 안전망(테스트) 확인 후 사람이 범위를 정한다. 로직 변경은 스크립트가 제안하지 않는다")):
+                 ("⑤ 이름·폴더 변경 (별도)", "**위험: 참조·서버·배포·DB 에 저장된 경로가 깨질 수 있다.** `--impact` 로 영향 분석 후 사람이 결정. 이 스크립트는 실행하지 않는다(질문서 Q6 에서 허용했을 때만 순서 제안). 결정 시 항목마다 별도 PR"),
+                 ("⑥ 리팩토링 트랙 (분리)", "하네스 문서·hook PR 과 별도 트랙. 안전망(테스트) 확인 후 사람이 범위를 정한다. 로직 변경은 스크립트가 실행하지 않는다")):
         L += [f"### {n}", f"- 내용: {t}", f"- {MARK}", ""]
     # (6) 질문
     L += ["## 6. 사람이 결정할 질문 (자동으로 알 수 없는 것)", "",
@@ -907,7 +956,7 @@ def selftest():
                 assert want in txt, (want, txt)
             ad = build_adopt(e, min_files=2)
             for want in ["## %d." % n for n in range(7)] + [UNK, MAP_MARK, "낡은 이름 의심", "src/pkg/sub | 2 |", "CLAUDE.md:2: - main 에 직접 push 금지",
-                                                       "CLAUDE.md:3: - 운영 DB", "인용 합계 2줄", "--impact", "제안하지 않는다"]:
+                                                       "CLAUDE.md:3: - 운영 DB", "인용 합계 2줄", "--impact", "실행하지 않는다", "Q6"]:
                 assert want in ad, (want, ad)
             assert "src/pkg/old/CLAUDE.md: 1줄 · 제목의 경로 `gone/name/`" in ad, ad
             assert resolve_project("ex", [e]) == e and resolve_project("none", [e]) is None and resolve_project(e, []) == e
@@ -918,6 +967,28 @@ def selftest():
             assert run_adopt_impact(["--adopt", e, "--out", o], os.path.join(d, "none.yaml")) == 2  # CLI 도 거부
             assert run_adopt_impact(["--impact", "pkg", "--project", os.path.join(d, "nodir")], "") == 2
             assert run(["git", "-C", e, "status", "--short"])[1] == ""  # 읽기 전용: 저장소가 더러워지지 않음
+        # 프로젝트 설정(.onboard.yaml)·이동 파일 자동 탐색·의도적 제외
+        if run(["git", "--version"])[0] == 0:
+            pj = os.path.join(d, "pj")
+            for rel, body in {"scripts/ci/check-claude-md.py": "x\n", "a/dup.py": "x\n", "b/dup.py": "x\n"}.items():
+                os.makedirs(os.path.dirname(os.path.join(pj, rel)), exist_ok=True)
+                open(os.path.join(pj, rel), "w", encoding="utf-8").write(body)
+            run(["git", "-C", pj, "init", "-q"])
+            run(["git", "-C", pj, "add", "."])
+            run(["git", "-C", pj, "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qm", "t"])
+            assert load_pcfg(pj) == {} and skip_reasons(pj) == {}
+            assert locate(pj, "scripts/check-claude-md.py") == "scripts/ci/check-claude-md.py"
+            assert locate(pj, "x/dup.py") is None and locate(pj, "nope/none.py") is None  # 중복·부재는 못 찾음
+            ok, why = eval_detect({"kind": "file_exists", "args": {"path": "scripts/check-claude-md.py"}}, pj, d)
+            assert ok and "실제 위치 scripts/ci/check-claude-md.py" in why, why
+            assert not eval_detect({"kind": "file_exists", "args": {"path": "nope/none.py"}}, pj, d)[0]
+            assert eval_item({"detect": [{"kind": "file_exists", "args": {"path": "scripts/check-claude-md.py"}}]}, pj, d) == (OK, "실제 위치 scripts/ci/check-claude-md.py")
+            r0, t0 = check_structure(pj)
+            assert "제외" not in t0 and "docs/guides" in t0, t0  # 설정 없으면 기존과 같다
+            open(os.path.join(pj, ONBOARD_CFG), "w", encoding="utf-8").write("skip_structure:\n  - docs/guides  # 의도적: 가이드는 위키에\n")
+            r1, t1 = check_structure(pj)
+            assert "제외: docs/guides — 의도적: 가이드는 위키에" in t1 and "의도적 제외" not in t1 and "없음: " in t1 and "docs/guides" not in t1.split("제외:")[0], t1
+            assert run(["git", "-C", pj, "status", "--short"])[1].split() == ["??", ONBOARD_CFG]  # 읽기 전용: 테스트가 직접 만든 설정 외에 아무것도 생기지 않는다
         assert "합계" in report([("PC", "x", OK, "")])
         reg, cfg = os.path.join(d, "reg.json"), os.path.join(d, "cfg.json")
         json.dump({"plugins": [{"id": "a@m1"}]}, open(cfg, "w"))
