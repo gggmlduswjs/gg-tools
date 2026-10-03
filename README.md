@@ -1,5 +1,7 @@
 # gg-tools
 
+**Codex 지원:** gg-skills 13개를 같은 원본으로 사용한다. 설치는 `pwsh ./bootstrap-codex.ps1`이며, 호출·hook 신뢰·환경 차이는 [Codex 사용 안내](docs/CODEX.md)를 따른다. 아래 `bootstrap.ps1`과 외부 플러그인 목록은 Claude Code용이다.
+
 Claude Code용 **공용 전문 스킬(플러그인)과 공통 Hook 엔진**을 모아 둔 저장소입니다. 프로젝트 문서 템플릿이나 개발 방법론은 이 저장소에 복제하지 않습니다.
 
 ## 무엇이 어디에 있나

@@ -11,7 +11,7 @@ description: Supabase MCP get_advisors 읽기 전용 공통 점검. "DB advisor"
 
 ## 원칙
 
-- `.mcp.json` 또는 Claude MCP 설정에 Supabase 서버가 있어야 한다.
+- 현재 환경에 Supabase MCP가 연결되어 있어야 한다(Claude `.mcp.json`/MCP 설정, Codex 연결 도구 목록과 MCP 설정). Claude 인증 파일을 Codex로 복사하지 않는다.
 - 운영 연결은 반드시 `read_only=true`여야 한다.
 - 허용: `get_advisors(type="security")`, `get_advisors(type="performance")`
 - 금지: `execute_sql`, `apply_migration`, SQL editor 지시, `dbshell` DDL, 수동 migrate
@@ -34,6 +34,8 @@ cat .mcp.json 2>/dev/null
 - 프로젝트 ref가 현재 repo의 운영/스테이징 문서와 일치하는가
 
 MCP 툴이 세션에 없으면 사용자에게 인증/재시작이 필요하다고 말한다. 인증은 사용자가 해야 한다.
+
+Codex에서는 실제 노출된 `get_advisors` 도구를 찾아 사용한다. `.mcp.json`만 없다는 이유로 연결이 없다고 단정하지 않는다. 플랫폼이 `read_only=true` URL을 노출하지 않으면 연결의 읽기 전용 권한과 프로젝트를 공식 설정에서 확인한다. 확인되지 않은 운영 연결은 조회하지 않고 `미확인`으로 보고한다. 프로젝트 전용 스킬은 `.agents/skills` 및 현재 설치 목록에서도 찾는다.
 
 ### 2. advisor 실행
 
