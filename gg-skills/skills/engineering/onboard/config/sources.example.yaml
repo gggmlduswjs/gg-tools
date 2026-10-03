@@ -9,6 +9,9 @@ catalog: false           # true 면 강의 적용 카탈로그(harness-catalog.j
 projects:        # 내 로컬 프로젝트 폴더 (harness 틀로 만든 것)
   - ~/Desktop/my-project
 
+harness:        # (선택) harness 틀 폴더 — --templates 가 양식(templates/·docs)을 비교할 기준
+  - ~/Desktop/ai-dev-harness
+
 repos:           # 접근할 수 있어야 하는 GitHub 저장소 (소유자/이름)
   - gggmlduswjs/gg-tools
   - gggmlduswjs/ai-dev-harness
