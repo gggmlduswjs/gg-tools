@@ -47,7 +47,7 @@ codex plugin list --json
 
 설치만으로 hook이 활성화되지 않는다. Codex CLI의 `/hooks`에서 정의를 검토하고 직접 신뢰해야 한다. 전역 권한·hook trust·인증 설정은 installer가 변경하지 않는다. Hook 실행에는 로컬 Python이 필요하다. 실제 세션 검증 전에는 자동 보호가 켜졌다고 보고하지 않는다. 지원되는 로컬 도구 경로의 보조 장치이며 shell 우회·hosted tool·모든 위험 명령을 완전히 차단하는 경계는 아니다.
 
-TDD guard는 기존처럼 기본 꺼짐이다. 프로젝트가 사용하기로 결정한 경우 hook 명령에 `--tdd`를 붙인다. 테스트 **파일 존재**만 검사하며 테스트 성공을 보장하지 않는다. 오래된 worktree 조회는 `SessionStart`에서 adapter의 `--stale-worktrees` 모드로 연결할 수 있다. 예시 설정의 `<설치된 plugin root>`는 실제 경로로 바꾸고 `/hooks`에서 신뢰한다:
+TDD guard는 기존처럼 기본 꺼짐이다. 프로젝트가 사용하기로 결정한 경우 hook 명령에 `--tdd`를 붙인다. 기존 `TDD_GUARD_DISABLE` 환경변수도 적용된다. 테스트 **파일 존재**만 검사하며 테스트 성공을 보장하지 않는다. 오래된 worktree 조회는 `SessionStart`에서 adapter의 `--stale-worktrees` 모드로 연결할 수 있다. 예시 설정의 `<설치된 plugin root>`는 실제 경로로 바꾸고 `/hooks`에서 신뢰한다:
 
 ```json
 {

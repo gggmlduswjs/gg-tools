@@ -98,7 +98,9 @@ async function openai(prompt: Prompt, model: string, maxTokens: number,
   });
   // 에러 본문에는 요청이나 개인정보가 담길 수 있으므로 출력하지 않는다.
   if (!response.ok) throw new Error(`OpenAI eval: HTTP ${response.status}`);
-  const body = await response.json() as ResponseBody;
+  let body: ResponseBody;
+  try { body = await response.json() as ResponseBody; }
+  catch { throw new Error("OpenAI eval: 응답 JSON 해석 실패"); }
   if (body.status !== "completed") throw new Error("OpenAI eval: 응답 미완료");
   const content = (body.output ?? []).filter(item => item.type === "message").flatMap(item => item.content ?? []);
   if (content.some(item => item.type === "refusal")) throw new Error("OpenAI eval: 모델 거절");

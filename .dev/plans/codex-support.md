@@ -21,3 +21,6 @@
 - Task 3: onboard runtime 테스트 RED→GREEN, 기존 selftest 통과. Codex 전용/기존 대상 목록 우선순위를 유지하고 프로젝트 worktree의 .git 파일도 인정한다.
 - Task 4: OpenAI client mock 테스트 RED→GREEN, 타입 검사 통과. Ruling: OpenAI 모델은 기본값 없이 명시 — 비용·모델 선택을 추정하지 않으며 처음 실행 시 설정이 필요하다.
 - Task 5: 사용자 안내·공용 CI 추가. CI는 외부 프로젝트 golden set을 제외한 unit/mock 범위를 명시한다. 실제 스킬 자동 호출·trusted live hook·유료 eval은 이 단계에서 검증 완료로 보고하지 않는다.
+- Final review: fresh reviewer, 두 Important(응답 JSON 오류 본문 노출, 현재 OpenAI 키 누락). Ruling: 선택 TDD disable 누락도 호환성 Important로 분류 — 사용자가 명시적으로 끈 설정이 Codex에서 계속 차단하므로 기존 제어를 보존한다. 변경 비용은 없음(기존 환경변수 계약 유지).
+- Final: 세 재현 테스트 실패를 확인한 뒤 공용 regex·JSON 오류 경계·TDD disable을 한 번의 수정으로 보완한다. 유료 모델 동작·trusted live hook은 검토 범위에서 제외했고, 활성화를 완료한 것으로 보고하지 않는다.
+- Final verification: Python 9/9, secret guard 14/14, guardrail 57/57, eval 95/95(실제 프로젝트 golden set 9개 포함, 모델 호출 없음), TypeScript 검사·diff check 통과. 기존 Claude bootstrap DryRun·plugin validate·onboard selftest 통과. 격리 Codex 설치 재실행은 캐시가 최신 source와 일치했고 다른 source의 동일 marketplace는 CLI가 거부했다.

@@ -77,3 +77,16 @@ it("HTTP failure does not log key or server payload", async () => {
   const {runSubject} = await import("../src/client.js");
   await expect(runSubject({system: "rules", user: "question"})).rejects.toThrow("HTTP 401");
 });
+
+it("malformed successful response never exposes its body in errors", async () => {
+  const marker = "SENSITIVE_SERVER_PAYLOAD";
+  vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(marker, {status: 200})));
+  const {runSubject} = await import("../src/client.js");
+  try {
+    await runSubject({system: "rules", user: "question"});
+    expect.fail("malformed response must fail");
+  } catch (error) {
+    expect((error as Error).message).not.toContain(marker.slice(0, 10));
+    expect((error as Error).message).toBe("OpenAI eval: 응답 JSON 해석 실패");
+  }
+});

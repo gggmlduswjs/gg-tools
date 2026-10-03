@@ -2,6 +2,7 @@
 """Codex hook wire format → 기존 공용 엔진. ask 미지원이므로 deny로 변환한다."""
 import importlib.util
 import json
+import os
 from pathlib import Path
 import sys
 
@@ -64,7 +65,7 @@ def decide_event(event, tdd=False):
         label = secret_guard.find_secret(path, text)
         if label:
             return deny('[GG] ' + label + ' 형식을 감지했습니다. 환경변수로 옮기세요. 값은 출력하지 않습니다.')
-        if tdd and text:
+        if tdd and text and not os.environ.get('TDD_GUARD_DISABLE'):
             result = engine('tdd_guard').decide(path, event.get('cwd') or str(Path.cwd()), 'deny')
             if result:
                 return {'hookSpecificOutput': result}

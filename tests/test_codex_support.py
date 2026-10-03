@@ -60,6 +60,24 @@ class HookTests(unittest.TestCase):
             (Path(directory) / 'test_service.py').write_text('test')
             self.assertIsNone(self.hook.decide_event(event, tdd=True))
 
+    def test_current_openai_keys_and_removal_do_not_leak(self):
+        for prefix in ('sk-proj-', 'sk-svcacct-', 'sk-'):
+            token = prefix + 'aA_-' * 25
+            if prefix == 'sk-':
+                token = prefix + 'aA' * 25
+            patch_text = '*** Begin Patch\n*** Add File: config.py\n+KEY="' + token + '"\n*** End Patch'
+            result = self.hook.decide_event({'tool_name': 'apply_patch', 'tool_input': {'command': patch_text}})
+            self.assertIsNotNone(result, prefix)
+            self.assertNotIn(token, json.dumps(result))
+            removal = '*** Begin Patch\n*** Update File: config.py\n-' + token + '\n+use_env()\n*** End Patch'
+            self.assertIsNone(self.hook.decide_event({'tool_name': 'apply_patch', 'tool_input': {'command': removal}}))
+
+    def test_explicit_tdd_disable_remains_effective(self):
+        with tempfile.TemporaryDirectory() as directory, patch.dict('os.environ', {'TDD_GUARD_DISABLE': '1'}):
+            event = {'cwd': directory, 'tool_name': 'apply_patch', 'tool_input': {'command':
+                     '*** Begin Patch\n*** Add File: src/service.py\n+def service(): pass\n*** End Patch'}}
+            self.assertIsNone(self.hook.decide_event(event, tdd=True))
+
 
 class OnboardTests(unittest.TestCase):
     def setUp(self):
