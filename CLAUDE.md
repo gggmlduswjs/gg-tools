@@ -2,6 +2,8 @@
 
 이 저장소는 Claude Code 플러그인 마켓플레이스(`gg-tools`)다. 플러그인은 `gg-skills` 하나.
 
+Codex도 같은 스킬 원본을 사용한다. Codex 등록은 `.agents/plugins/marketplace.json`과 `gg-skills/.codex-plugin/plugin.json`이며 [사용 안내](docs/CODEX.md)를 따른다. Codex용 별도 본문 복제를 만들지 않는다.
+
 ## 폴더
 
 - `gg-skills/skills/<분류>/<스킬>/SKILL.md` — 분류: `engineering` · `diagnostics` · `second-brain` (플러그인에 실림), `misc` · `in-progress` · `deprecated` (실리지 않음)
@@ -16,6 +18,7 @@
 2. `plugin.json`의 `skills` 배열과 `gg-skills/skills/README.md` 표에 등록한다. 이름으로 대조하며, 어긋나면 pre-commit이 막는다.
 3. `ask-gg` 라우터 표를 갱신한다.
 4. `claude plugin validate gg-skills`를 통과시킨다.
+5. Codex manifest의 공용 목록도 맞추고 `python -m unittest discover -s tests`를 실행한다. `codex-skills/project-review`는 기존 command를 읽는 Codex 진입점이다.
 
 ## 지키는 것
 

@@ -7,13 +7,17 @@
  * temperature 를 400 으로 거부한다. 회귀 게이트라 재현성이 최신 모델보다 우선이다.
  * sonnet-5 로 올릴 거면 EVAL_SUBJECT_TEMPERATURE 를 비우고(=미전송) 올려라.
  */
-export const SUBJECT_MODEL = process.env.EVAL_SUBJECT_MODEL ?? "claude-sonnet-4-6";
+export const PROVIDER = process.env.EVAL_PROVIDER ?? "anthropic";
+if (!["anthropic", "openai"].includes(PROVIDER)) throw new Error("EVAL_PROVIDER: anthropic 또는 openai 필요");
+// OpenAI는 모델을 명시한다. Claude 모델명으로 잘못 호출하거나 임의 비용 기본값을 붙이지 않는다.
+export const SUBJECT_MODEL = process.env.EVAL_SUBJECT_MODEL ?? (PROVIDER === "openai" ? "" : "claude-sonnet-4-6");
 export const SUBJECT_TEMPERATURE =
-  process.env.EVAL_SUBJECT_TEMPERATURE === "" ? undefined : Number(process.env.EVAL_SUBJECT_TEMPERATURE ?? 0);
+  process.env.EVAL_SUBJECT_TEMPERATURE === "" || (PROVIDER === "openai" && process.env.EVAL_SUBJECT_TEMPERATURE === undefined)
+    ? undefined : Number(process.env.EVAL_SUBJECT_TEMPERATURE ?? 0);
 export const SUBJECT_MAX_TOKENS = 4000;
 
 /** judge(채점자) — subject 와 다른 모델이어야 자기 답을 자기가 채점하지 않는다. */
-export const JUDGE_MODEL = process.env.EVAL_JUDGE_MODEL ?? "claude-opus-5";
+export const JUDGE_MODEL = process.env.EVAL_JUDGE_MODEL ?? (PROVIDER === "openai" ? "" : "claude-opus-5");
 export const JUDGE_MAX_TOKENS = 16000;
 
 /** 동시 실행 수. 올리면 빨라지지만 rate limit 에 걸리면 error 로 떨어지고 게이트는 exit 1 이다. */

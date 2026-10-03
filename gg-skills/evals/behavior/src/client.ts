@@ -1,9 +1,10 @@
-// Anthropic 호출부 — 네트워크·비용이 붙는 유일한 자리. vitest 는 여기를 부르지 않는다.
+// 모델 호출부 — 네트워크·비용이 붙는 유일한 자리. vitest는 전송을 mock한다.
 
 import Anthropic from "@anthropic-ai/sdk";
 import {
   JUDGE_MAX_TOKENS,
   JUDGE_MODEL,
+  PROVIDER,
   SUBJECT_MAX_TOKENS,
   SUBJECT_MODEL,
   SUBJECT_TEMPERATURE,
@@ -34,6 +35,7 @@ function assertNotRefused(message: Anthropic.Message, where: string): void {
 
 /** 피험자 호출 — 리뷰어든 응답자든 여기 하나를 쓴다. */
 export async function runSubject(prompt: Prompt): Promise<string> {
+  if (PROVIDER === "openai") return openai(prompt, SUBJECT_MODEL, SUBJECT_MAX_TOKENS, undefined, SUBJECT_TEMPERATURE);
   const message = await anthropic().messages.create({
     model: SUBJECT_MODEL,
     max_tokens: SUBJECT_MAX_TOKENS,
@@ -50,6 +52,11 @@ export async function runSubject(prompt: Prompt): Promise<string> {
  * 파싱 실패로 게이트가 흔들리는 걸 막는 게 목적이다.
  */
 export async function runJudge<T>(prompt: Prompt, schema: Record<string, unknown>): Promise<T> {
+  if (PROVIDER === "openai") {
+    const text = await openai(prompt, JUDGE_MODEL, JUDGE_MAX_TOKENS, schema);
+    try { return JSON.parse(text) as T; }
+    catch { throw new Error("judge: JSON 파싱 실패"); }
+  }
   const message = await anthropic().messages.create({
     model: JUDGE_MODEL,
     max_tokens: JUDGE_MAX_TOKENS,
@@ -66,4 +73,36 @@ export async function runJudge<T>(prompt: Prompt, schema: Record<string, unknown
   } catch {
     throw new Error(`judge: JSON 파싱 실패 — ${text.slice(0, 200)}`);
   }
+}
+
+type ResponseBody = {
+  status: string;
+  output?: {type: string; content?: {type: string; text?: string}[]}[];
+};
+
+async function openai(prompt: Prompt, model: string, maxTokens: number,
+                      schema?: Record<string, unknown>, temperature?: number): Promise<string> {
+  if (!model || !SUBJECT_MODEL || !JUDGE_MODEL) throw new Error("OpenAI eval: EVAL_SUBJECT_MODEL·EVAL_JUDGE_MODEL을 명시하세요");
+  if (SUBJECT_MODEL === JUDGE_MODEL) throw new Error("OpenAI eval: subject와 judge는 다른 모델이어야 합니다");
+  const key = process.env.OPENAI_API_KEY;
+  if (!key) throw new Error("OpenAI eval: OPENAI_API_KEY 필요 (Codex 로그인과 별도)");
+  const response = await fetch("https://api.openai.com/v1/responses", {
+    method: "POST",
+    headers: {Authorization: `Bearer ${key}`, "Content-Type": "application/json"},
+    signal: AbortSignal.timeout(120_000),
+    body: JSON.stringify({model, instructions: prompt.system, input: prompt.user,
+      max_output_tokens: maxTokens, store: false,
+      ...(temperature === undefined ? {} : {temperature}),
+      ...(schema ? {text: {format: {type: "json_schema", name: "eval_judge", strict: true, schema}}} : {}),
+    }),
+  });
+  // 에러 본문에는 요청이나 개인정보가 담길 수 있으므로 출력하지 않는다.
+  if (!response.ok) throw new Error(`OpenAI eval: HTTP ${response.status}`);
+  const body = await response.json() as ResponseBody;
+  if (body.status !== "completed") throw new Error("OpenAI eval: 응답 미완료");
+  const content = (body.output ?? []).filter(item => item.type === "message").flatMap(item => item.content ?? []);
+  if (content.some(item => item.type === "refusal")) throw new Error("OpenAI eval: 모델 거절");
+  const text = content.filter(item => item.type === "output_text").map(item => item.text ?? "").join("");
+  if (!text.trim()) throw new Error("OpenAI eval: 응답 text 없음");
+  return text;
 }
