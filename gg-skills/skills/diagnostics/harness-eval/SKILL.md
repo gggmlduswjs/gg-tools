@@ -40,6 +40,8 @@ cat .dev/harness/evals/tasks.json 2>/dev/null
 
 ### 3. 채점
 
+기존 공용 실행기를 사용하는 경우 [evals/behavior 안내](../../../evals/behavior/README.md)를 읽는다. Claude 기본 provider는 유지된다. Claude 없이 API로 평가하려면 `EVAL_PROVIDER=openai`와 `OPENAI_API_KEY`, 서로 다른 subject/judge 모델을 명시한다. Codex 구독 로그인은 API 키를 대신하지 않는다. 라이브 평가는 별도 비용·외부 전송이 있어 승인된 범위에서 실행하고, `npm test`는 mock/로컬 데이터만 사용한다. 이 실행기는 프롬프트 품질을 평가하며 실제 Codex 세션의 도구 실행/skill 자동 호출을 검증하지 않는다.
+
 가능한 구조:
 
 ```text

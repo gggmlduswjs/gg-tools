@@ -20,7 +20,7 @@ import { aggregate, exitCodeFor, formatReport, type CaseResult } from "./src/agg
 import { checkBalance } from "./src/balance.js";
 import { TRACKS, loadAllCases, type EvalCase, type Track } from "./src/cases.js";
 import { runJudge, runSubject } from "./src/client.js";
-import { CONCURRENCY, JUDGE_MODEL, SUBJECT_MODEL, SUBJECT_TEMPERATURE } from "./src/config.js";
+import { CONCURRENCY, JUDGE_MODEL, PROVIDER, SUBJECT_MODEL, SUBJECT_TEMPERATURE } from "./src/config.js";
 import {
   QA_JUDGE_SCHEMA,
   REVIEW_JUDGE_SCHEMA,
@@ -114,12 +114,13 @@ async function main(): Promise<void> {
       `케이스 ${cases.length}건${trackFilter ? ` (--track ${trackFilter})` : ""}`,
       `subject=${SUBJECT_MODEL}${SUBJECT_TEMPERATURE === undefined ? "" : ` temp=${SUBJECT_TEMPERATURE}`}`,
       `judge=${JUDGE_MODEL}`,
+      `provider=${PROVIDER}`,
       `동시 ${CONCURRENCY}`,
     ].join(" · "),
   );
   // ⚠️ 값은 절대 로그에 남기지 않는다. 이 eval 이 쓰는 변수의 **이름만** 보고한다
   //    (.env 에는 무관한 키가 수십 개라 전부 찍으면 노이즈다).
-  const mine = LOADED_KEYS.filter((k) => k.startsWith("EVAL_") || k.startsWith("ANTHROPIC_"));
+  const mine = LOADED_KEYS.filter((k) => k.startsWith("EVAL_") || k.startsWith("ANTHROPIC_") || k.startsWith("OPENAI_"));
   console.log(`.env 에서 채운 설정: ${mine.length ? mine.join(", ") : "없음(셸 환경변수 사용)"}`);
   // ⚠️ 프롬프트 경로를 **실제 값으로** 찍는다 — 음성 대조로 갈아끼운 걸 모르고
   //    "5/5 통과" 를 정상으로 읽는 일이 없어야 한다.
@@ -136,6 +137,7 @@ async function main(): Promise<void> {
   const snapshot = {
     // 시각은 실행할 때 찍는다. 이 파일은 gitignore 다 — 로컬 값이 커밋되면 스냅샷이 거짓말한다.
     ran_at: new Date().toISOString(),
+    provider: PROVIDER,
     subject_model: SUBJECT_MODEL,
     judge_model: JUDGE_MODEL,
     track_filter: trackFilter,
