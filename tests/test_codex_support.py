@@ -62,6 +62,37 @@ class HookTests(unittest.TestCase):
             self.assertEqual(result['hookSpecificOutput']['permissionDecision'], 'deny')
         self.assertIsNone(self.hook.decide_event({'tool_name': 'Bash', 'tool_input': {'command': 'git status --short'}}))
 
+    def test_public_django_ci_value_does_not_block_commands(self):
+        for command in (
+            'DJANGO_SECRET_KEY=ci-only-not-a-real-secret python manage.py test',
+            "$env:DJANGO_SECRET_KEY='ci-only-not-a-real-secret'; python manage.py test",
+            '$env:DJANGO_SECRET_KEY="ci-only-not-a-real-secret"; python manage.py test',
+        ):
+            with self.subTest(command=command):
+                self.assertIsNone(self.hook.decide_event(
+                    {'tool_name': 'exec_command', 'tool_input': {'cmd': command}}))
+
+    def test_public_ci_exception_does_not_hide_other_secrets_or_risks(self):
+        for command in (
+            'OTHER_SECRET_KEY=ci-only-not-a-real-secret python x.py',
+            'DJANGO_SECRET_KEY=ci-only-not-a-real-secret-extra python x.py',
+            "DJANGO_SECRET_KEY='ci-only-not-a-real-secret!' python x.py",
+            "DJANGO_SECRET_KEY='ci-only-not-a-real-secret'actual python x.py",
+            'export "DJANGO_SECRET_KEY=ci-only-not-a-real-secret;actual-private-suffix"',
+            'export "DJANGO_SECRET_KEY=ci-only-not-a-real-secret actual-private-suffix"',
+            "export 'DJANGO_SECRET_KEY=ci-only-not-a-real-secret;actual-private-suffix'",
+            'DJANGO_SECRET_KEY=ci-only-not-a-real-secret OTHER_TOKEN=' + 'D' * 20 + ' python x.py',
+            'DJANGO_SECRET_KEY=' + 'D' * 20 + ' python x.py',
+            'DJANGO_SECRET_KEY=ci-only-not-a-real-secret git push --force',
+            'DJANGO_SECRET_KEY=ci-only-not-a-real-secret git reset --hard',
+            'DJANGO_SECRET_KEY=ci-only-not-a-real-secret psql -c "DROP TABLE orders"',
+        ):
+            with self.subTest(command=command):
+                result = self.hook.decide_event(
+                    {'tool_name': 'exec_command', 'tool_input': {'cmd': command}})
+                self.assertIsNotNone(result)
+                self.assertEqual(result['hookSpecificOutput']['permissionDecision'], 'deny')
+
     def test_patch_only_new_text_and_each_file(self):
         token = 'ghp_' + 'a' * 36
         patch = '*** Begin Patch\n*** Update File: README.md\n-' + token + '\n+removed\n*** Add File: src/config.py\n+TOKEN="' + token + '"\n*** End Patch'
