@@ -11,6 +11,7 @@
   python check_setup.py --catalog             # + 강의 적용 카탈로그 점검(sources.yaml 에 catalog: true 로도 켬)
   python check_setup.py --adopt <경로|프로젝트이름>   # 기존 프로젝트 개편 계획서 초안(마크다운, stdout). --min-files N · --out 파일
   python check_setup.py --impact <경로|문자열> [--project <경로|이름>] [--full] [--out 파일]   # 참조 수 집계(위험 판정 아님)
+  python check_setup.py --templates <경로|프로젝트이름> [--harness 경로]   # 하네스 templates/·docs 양식 대비 빠진 섹션·도메인 문서 커버리지
   python check_setup.py --selftest
 
 대상 목록 기본 위치: ~/.claude/onboard/sources.yaml (예시: ../config/sources.example.yaml)
@@ -243,6 +244,8 @@ def classify(p, deep=False):
 
 ONBOARD_CFG = ".onboard.yaml"  # 프로젝트 루트의 설정(사람/PR 로만 만든다. 스킬은 읽기만). 키 아래 '- 값  # 이유' 목록(parse_sources 형식)
 #   skip_structure: 의도적으로 두지 않는 기준 구조(예 docs/guides) — 보고에 '제외'와 사유로 표시
+#   skip_templates: --templates 에서 의도적으로 제외할 하네스 문서(예 docs/UI_GUIDE.md)   templates_dir: 프로젝트의 양식 폴더(기본 templates)
+#   domain_root: 도메인 코드 폴더 · domain_exclude: 도메인이 아닌 코드 폴더 · domain_alias: '코드폴더=문서이름'
 
 
 def load_pcfg(p):
@@ -805,6 +808,94 @@ def run_adopt_impact(argv, sources_path):
     return 0
 
 
+def heads(text):
+    """## · ### 제목(정규화). 코드펜스 안과 [자리표시] 제목은 제외."""
+    out, fence = [], False
+    for ln in text.splitlines():
+        if ln.lstrip().startswith("```"):
+            fence = not fence
+        m = None if fence else re.match(r"^#{2,3}\s+(.*?)\s*$", ln)
+        if m and "[" not in m.group(1):
+            out.append(re.sub(r"\s+", " ", re.sub(r"[`*]", "", m.group(1))).lower())
+    return out
+
+
+def _read(p, rel):
+    try:
+        return open(os.path.join(p, rel), encoding="utf-8", errors="replace").read()
+    except OSError:
+        return None
+
+
+def norm_dom(s):
+    s = re.sub(r"[-_ ]", "", s.lower())
+    return s[:-1] if s.endswith("s") else s
+
+
+def check_templates(p, harness, min_files=1):
+    """하네스 templates/*.md · docs/*.md 대 프로젝트: (행 [(구분, 항목, 상태, 비고)], 지표 dict). harness 없으면 미확인."""
+    cfg, files = load_pcfg(p), tracked(p)
+    skip = set(cfg.get("skip_templates", []))
+    tdir = (cfg.get("templates_dir") or ["templates"])[0].rstrip("/")
+    rows, miss_n = [], 0
+    if not harness or not os.path.isdir(harness):
+        return [("템플릿", "하네스 위치", WARN, f"{UNK} — sources.yaml 의 harness: 또는 --harness 경로")], {"tpl_missing": None}
+    want = [("templates/" + f, tdir + "/" + f) for f in sorted(os.listdir(os.path.join(harness, "templates")) if os.path.isdir(os.path.join(harness, "templates")) else []) if f.endswith(".md") and f != "README.md"]
+    want += [("docs/" + f, "docs/" + f) for f in sorted(os.listdir(os.path.join(harness, "docs")) if os.path.isdir(os.path.join(harness, "docs")) else []) if f.endswith(".md") and f != "ADOPTION.md"]
+    for hrel, prel in want:
+        if hrel in skip or prel in skip:
+            rows.append(("템플릿", prel, "제외", "의도적 제외(.onboard.yaml skip_templates)"))
+            continue
+        loc = locate(p, prel, files)
+        if not loc:
+            miss_n += 1
+            rows.append(("템플릿", prel, FAIL, "파일 없음"))
+            continue
+        need = heads(_read(harness, hrel) or "")
+        have = set(heads(_read(p, loc) or ""))
+        lack = [h for h in need if h not in have]
+        miss_n += bool(lack)
+        rows.append(("템플릿", prel, WARN if lack else OK, f"섹션 {len(need) - len(lack)}/{len(need)}" + (" · 없음: " + ", ".join(lack[:3]) + (" …" if len(lack) > 3 else "") if lack else "")))
+    # 도메인 문서: 개별 문서가 DOMAIN.md 섹션을 갖는지 + 코드 도메인 커버리지
+    dneed = heads(_read(harness, "templates/DOMAIN.md") or "")
+    docs = sorted(f for f in files if re.match(r"docs/domains/[^/]+\.md$", f) and not f.endswith("README.md"))
+    bad = [f for f in docs if any(h not in set(heads(_read(p, f) or "")) for h in dneed)]
+    rows.append(("도메인문서", f"docs/domains {len(docs)}개", WARN if bad else OK, f"DOMAIN 양식 섹션 부족 {len(bad)}개: " + ", ".join(os.path.basename(f) for f in bad[:4]) if bad else "양식 섹션 충족"))
+    top, base, mods = code_layout(p, files)
+    root = (cfg.get("domain_root") or [base])[0].rstrip("/")
+    ex = {x for x in cfg.get("domain_exclude", [])}
+    alias = dict(a.split("=", 1) for a in cfg.get("domain_alias", []) if "=" in a)
+    dirs_of = lambda r: {f[len(r) + 1:].split("/")[0] for f in files if r and f.startswith(r + "/") and f.count("/") > r.count("/") + 1
+                         and os.path.splitext(f)[1].lower() in CODE_EXT}
+    if not cfg.get("domain_root") and dirs_of(root) <= {"backend", "frontend"} and dirs_of(root + "/backend"):
+        root += "/backend"  # src/{backend,frontend} 레이아웃이면 도메인은 backend 아래(다르면 domain_root 로 선언)
+    code = sorted(dirs_of(root) - ex)
+    have = {norm_dom(os.path.basename(f)[:-3]) for f in docs}
+    nocov = [c for c in code if norm_dom(alias.get(c, c)) not in have]
+    extra = sorted(os.path.basename(f)[:-3] for f in docs if norm_dom(os.path.basename(f)[:-3]) not in {norm_dom(alias.get(c, c)) for c in code})
+    rows.append(("도메인커버", f"코드 {len(code)}개({root or UNK}) ↔ 문서 {len(docs)}개", WARN if nocov or extra else OK,
+                 ("문서 없는 코드 도메인: " + ", ".join(nocov) if nocov else "코드→문서 전부 대응") + ("; 코드 없는 문서: " + ", ".join(extra) if extra else "")))
+    return rows, {"tpl_missing": miss_n, "domain_nodoc": len(nocov), "domain_code": len(code)}
+
+
+def run_templates(argv, sources_path):
+    """--templates <프로젝트> [--harness 경로]. 종료 코드를 돌려준다."""
+    def opt(flag):
+        return argv[argv.index(flag) + 1] if flag in argv and argv.index(flag) + 1 < len(argv) else None
+    cfg = parse_sources(open(sources_path, encoding="utf-8").read()) if os.path.exists(sources_path) else {}
+    p = resolve_project(opt("--templates") or os.getcwd(), cfg.get("projects", []))
+    if not p or not os.path.isdir(os.path.join(p, ".git")):
+        print("프로젝트를 찾지 못했거나 git 저장소가 아니다(경로 또는 sources.yaml 의 프로젝트 이름)", file=sys.stderr)
+        return 2
+    harness = expand(opt("--harness") or (cfg.get("harness") or [""])[0]) or None
+    try:
+        sys.stdout.reconfigure(encoding="utf-8")
+    except Exception:
+        pass
+    print(report(check_templates(p, harness)[0]))
+    return 0
+
+
 def check_wiki(path):
     p = expand(path)
     if not os.path.isdir(p):
@@ -851,6 +942,8 @@ def main(argv):
     src = os.path.join(HOME, ".claude", "onboard", "sources.yaml")
     if "--sources" in argv:
         src = expand(argv[argv.index("--sources") + 1])
+    if "--templates" in argv:  # 하네스 양식 대비 프로젝트 문서 점검: PC 점검 없이 이것만
+        return run_templates(argv, src)
     if "--adopt" in argv or "--impact" in argv:  # 기존 프로젝트 개편 분석: PC 점검 없이 이것만
         return run_adopt_impact(argv, src)
     rows = check_pc()
@@ -989,6 +1082,33 @@ def selftest():
             r1, t1 = check_structure(pj)
             assert "제외: docs/guides — 의도적: 가이드는 위키에" in t1 and "의도적 제외" not in t1 and "없음: " in t1 and "docs/guides" not in t1.split("제외:")[0], t1
             assert run(["git", "-C", pj, "status", "--short"])[1].split() == ["??", ONBOARD_CFG]  # 읽기 전용: 테스트가 직접 만든 설정 외에 아무것도 생기지 않는다
+        # 하네스 양식 점검(--templates): 일치·누락·제외·읽기 전용
+        if run(["git", "--version"])[0] == 0:
+            hd, pj = os.path.join(d, "th"), os.path.join(d, "tp")
+            lines = lambda *x: "\n".join(x) + "\n"
+            for root, tree in ((hd, {"templates/DOMAIN.md": lines("## 목적", "## 규칙", "## [자리표시]"), "templates/ADR.md": lines("## 결정", "## 근거"),
+                                     "docs/PRD.md": lines("## 한 줄", "```", "## 펜스", "```"), "docs/UI_GUIDE.md": lines("## 색")}),
+                               (pj, {"templates/DOMAIN.md": lines("## 목적", "## 규칙"), "templates/ADR.md": lines("## 결정"), "docs/PRD.md": lines("## 한 줄"),
+                                     "docs/domains/books.md": lines("## 목적"), "src/backend/books/a.py": "x\n", "src/backend/orders/a.py": "x\n",
+                                     "src/backend/api/a.py": "x\n", ".onboard.yaml": lines("skip_templates:", "  - docs/UI_GUIDE.md  # 의도적", "domain_exclude:", "  - api")})):
+                for rel, body in tree.items():
+                    os.makedirs(os.path.dirname(os.path.join(root, rel)), exist_ok=True)
+                    open(os.path.join(root, rel), "w", encoding="utf-8").write(body)
+            run(["git", "-C", pj, "init", "-q"])
+            run(["git", "-C", pj, "add", "."])
+            run(["git", "-C", pj, "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qm", "t"])
+            rows, tm = check_templates(pj, hd)
+            st = {r[1]: (r[2], r[3]) for r in rows}
+            assert st["templates/DOMAIN.md"][0] == OK and st["docs/PRD.md"][0] == OK, st  # 일치(자리표시·코드펜스 제목 제외)
+            assert st["templates/ADR.md"][0] == WARN and "근거" in st["templates/ADR.md"][1], st  # 섹션 누락
+            assert st["docs/UI_GUIDE.md"][0] == "제외", st  # 의도적 제외
+            dom = [r for r in rows if r[0] == "도메인커버"][0]
+            assert dom[2] == WARN and "orders" in dom[3] and tm["domain_nodoc"] == 1, dom  # api 는 제외, orders 만 문서 없음
+            run(["git", "-C", pj, "rm", "-q", "docs/PRD.md"])
+            assert {r[1]: r[2] for r in check_templates(pj, hd)[0]}["docs/PRD.md"] == FAIL  # 파일 없음
+            assert check_templates(pj, None)[0][0][2] == WARN  # 하네스 미지정 = 미확인
+            assert run_templates(["--templates", os.path.join(d, "nodir")], "") == 2
+            assert sorted(x.split()[-1] for x in run(["git", "-C", pj, "status", "--short"])[1].splitlines()) == ["docs/PRD.md"]  # 읽기 전용: 테스트가 지운 것 외 변화 없음
         assert "합계" in report([("PC", "x", OK, "")])
         reg, cfg = os.path.join(d, "reg.json"), os.path.join(d, "cfg.json")
         json.dump({"plugins": [{"id": "a@m1"}]}, open(cfg, "w"))
