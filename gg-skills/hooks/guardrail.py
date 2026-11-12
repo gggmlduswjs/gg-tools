@@ -175,6 +175,28 @@ def deny_common(migration_hint="마이그레이션 경로로만"):
     ]
 
 
+_INLINE_SECRET_ASSIGNMENT = re.compile(
+    r"\b(?P<name>[A-Za-z0-9_]*(?:API_?KEY|SECRET(?:_KEY)?|TOKEN|PASSWORD|PASSWD))"
+    r"\s*=\s*(?P<quote>['\"]?)(?P<value>[A-Za-z0-9_\-+/=]{16,})", re.IGNORECASE)
+
+
+def _inline_secret(cmd):
+    """공개 CI 고정값 한 쌍만 제외하며, 다른 대입은 계속 검사한다."""
+    for match in _INLINE_SECRET_ASSIGNMENT.finditer(cmd):
+        if (match['name'].upper() == 'DJANGO_SECRET_KEY'
+                and match['value'] == 'ci-only-not-a-real-secret'
+                and (match.start() == 0 or cmd[match.start() - 1] not in "'\"")):
+            tail, quote = cmd[match.end():], match['quote']
+            if quote:
+                if not tail.startswith(quote):
+                    return True
+                tail = tail[1:]
+            if not tail or tail[0].isspace() or tail[0] in ';&|':
+                continue
+        return True
+    return False
+
+
 def ask_common():
     """파괴적이지만 가끔 정당 — 확인을 강제한다. 두 레포가 같이 지는 위험만 둔다."""
     return [
@@ -201,7 +223,7 @@ def ask_common():
          r"|xox[baprs]-[A-Za-z0-9-]{10,}|AIza[0-9A-Za-z_-]{30,})", "ask",
          "명령줄에 API 키가 들어 있다. 승인하면 이 명령이 통째로 allow 에 평문 저장된다 — "
          "키는 `.env` 에 넣고 명령에서는 빼라(2026-08-06 사고)."),
-        (r"(API_?KEY|SECRET(_KEY)?|TOKEN|PASSWORD|PASSWD)\s*=\s*['\"]?[A-Za-z0-9_\-+/=]{16,}", "ask",
+        (_inline_secret, "ask",
          "명령줄에 시크릿 값이 들어 있다. 승인하면 allow 에 평문으로 남는다 — `.env` 를 써라."),
         # 경로를 파일로 넘기면 명령만 봐서는 뭘 지우는지 알 수 없다 — 실제로 이걸로 우회됐다.
         (r"git\s+rm\b[^|&;]*--pathspec-from-file", "ask",

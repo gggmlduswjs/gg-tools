@@ -20,6 +20,7 @@ import os
 import re
 import subprocess
 import sys
+from pathlib import Path
 
 HOME = os.path.expanduser("~")
 OK, WARN, FAIL = "OK", "확인", "없음"
@@ -77,13 +78,27 @@ def check_dup_plugins(reg_path, cfg_path):
     return [("PC", "플러그인 중복 설치", WARN if notes else OK, "; ".join(notes) if notes else "중복 없음")]
 
 
-def check_pc():
+def check_pc(runtime="claude"):
     rows = []
-    for tool, arg in (("git", "--version"), ("gh", "--version"), ("python", "--version"), ("claude", "--version")):
+    for tool, arg in (("git", "--version"), ("gh", "--version"), ("python", "--version"), (runtime, "--version")):
         code, out = run([tool, arg])
         rows.append(("PC", tool, OK if code == 0 else FAIL, out.strip().splitlines()[0] if code == 0 and out.strip() else "설치 필요(새 PowerShell 창에서 다시 확인)"))
     code, out = run(["gh", "auth", "status"])
     rows.append(("PC", "GitHub 로그인", OK if code == 0 else FAIL, "" if code == 0 else "gh auth login 은 직접 실행"))
+    if runtime == "codex":
+        code, out = run(["codex", "plugin", "list", "--json"])
+        try:
+            installed = json.loads(out)["installed"] if code == 0 else []
+            enabled = any(p.get("pluginId") == "gg-skills@gg-tools" and p.get("enabled") for p in installed)
+            rows.append(("PC", "gg-skills@gg-tools", OK if enabled else WARN,
+                         "설치·enabled 확인 (호출·hook 신뢰는 별도)" if enabled else "bootstrap-codex.ps1 실행 또는 CLI 오류 확인"))
+        except (ValueError, KeyError, TypeError):
+            rows.append(("PC", "gg-skills@gg-tools", WARN, "codex plugin list JSON 해석 실패"))
+        engine = Path(__file__).resolve().parents[4] / "hooks/guardrail.py"
+        code, out = run([sys.executable, str(engine), "--selftest"])
+        rows.append(("PC", "위험 명령 차단 엔진", OK if code == 0 else FAIL,
+                     out.strip().splitlines()[-1] if out.strip() else "selftest 출력 없음"))
+        return rows
     # 플러그인: ~/claude/plugins.json 대 설치 등록부
     cfg_path = os.path.join(HOME, "claude", "plugins.json")
     reg_path = os.path.join(HOME, ".claude", "plugins", "installed_plugins.json")
@@ -109,20 +124,22 @@ def check_pc():
     return rows
 
 
-def check_project(path):
+def check_project(path, runtime="claude"):
     p = expand(path)
     if not os.path.isdir(p):
         return [("프로젝트", path, FAIL, "폴더 없음")]
     notes, status = [], OK
-    if not os.path.isdir(os.path.join(p, ".git")):
+    if not os.path.exists(os.path.join(p, ".git")):
         notes.append("git 저장소 아님"); status = WARN
+    runtime_file = "AGENTS.md" if runtime == "codex" else os.path.join(".claude", "settings.json")
     for rel, label in (("CLAUDE.md", "CLAUDE.md"), (os.path.join("docs", "PRD.md"), "docs/PRD.md"),
-                       (os.path.join(".claude", "settings.json"), ".claude/settings.json")):
+                       (runtime_file, runtime_file)):
         if not os.path.exists(os.path.join(p, rel)):
             notes.append(f"{label} 없음"); status = WARN
     cm = os.path.join(p, "CLAUDE.md")
     if os.path.exists(cm):
-        n = sum(1 for _ in open(cm, encoding="utf-8", errors="replace"))
+        with open(cm, encoding="utf-8", errors="replace") as rules:
+            n = sum(1 for _ in rules)
         if n > 200:
             notes.append(f"CLAUDE.md {n}줄(200줄 이하 권장)"); status = WARN
     return [("프로젝트", path, status, "; ".join(notes) if notes else "틀 구성 확인")]
@@ -848,12 +865,21 @@ def report(rows):
 
 
 def main(argv):
+    runtime = argv[argv.index("--runtime") + 1] if "--runtime" in argv[:-1] else "claude"
+    if runtime not in ("claude", "codex") or ("--runtime" in argv and argv[-1] == "--runtime"):
+        print("--runtime 은 claude 또는 codex 여야 합니다.", file=sys.stderr)
+        return 2
     src = os.path.join(HOME, ".claude", "onboard", "sources.yaml")
+    if runtime == "codex":
+        codex_src = os.path.join(os.environ.get("CODEX_HOME", os.path.join(HOME, ".codex")), "onboard", "sources.yaml")
+        # 기존 개인 목록을 재사용하되 Codex 전용 목록이 있으면 우선한다.
+        if os.path.exists(codex_src) or not os.path.exists(src):
+            src = codex_src
     if "--sources" in argv:
         src = expand(argv[argv.index("--sources") + 1])
     if "--adopt" in argv or "--impact" in argv:  # 기존 프로젝트 개편 분석: PC 점검 없이 이것만
         return run_adopt_impact(argv, src)
-    rows = check_pc()
+    rows = check_pc(runtime)
     structure, details = "--structure" in argv, []
     catalog, projects = "--catalog" in argv, []
     if os.path.exists(src):
@@ -863,7 +889,7 @@ def main(argv):
         structure = structure or bool(re.search(r"^structure_check:\s*true", text, re.M | re.I))
         catalog = catalog or bool(re.search(r"^catalog:\s*true", text, re.M | re.I))
         for p in cfg.get("projects", []):
-            rows += check_project(p)
+            rows += check_project(p, runtime)
             if structure:
                 r, detail = check_structure(p, "--full" in argv, "--deep" in argv)
                 rows += r
@@ -886,6 +912,8 @@ def main(argv):
         print(d)
     if catalog:
         print()
+        if runtime == "codex":
+            print("카탈로그의 Claude 설치/settings 항목은 Claude 기준 참고 점검이며 Codex 실행 게이트가 아닙니다.")
         print(report_catalog(check_catalog(CATALOG, projects)))
         if not projects:
             print("(projects 없음 — 프로젝트 항목은 점검하지 못했다)")

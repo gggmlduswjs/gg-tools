@@ -17,7 +17,7 @@ import sys
 
 PATTERNS = [
     ("Anthropic 키", re.compile(r"sk-ant-[A-Za-z0-9_\-]{20,}")),
-    ("OpenAI 계열 키", re.compile(r"\bsk-[A-Za-z0-9]{32,}")),
+    ("OpenAI 계열 키", re.compile(r"\bsk-(?:(?:proj|svcacct)-[A-Za-z0-9_\-]{32,}|[A-Za-z0-9]{32,})")),
     ("GitHub 토큰", re.compile(r"\b(?:ghp|gho|ghu|ghs|ghr)_[A-Za-z0-9]{30,}|github_pat_[A-Za-z0-9_]{40,}")),
     ("AWS 액세스 키", re.compile(r"\bAKIA[0-9A-Z]{16}\b")),
     ("Slack 토큰", re.compile(r"\bxox[abprs]-[A-Za-z0-9\-]{10,}")),
@@ -65,6 +65,10 @@ def run():
 
 
 CASES = [
+    ("a.py", "KEY = 'sk-proj-" + "aA_-" * 25 + "'", True),
+    ("a.py", "KEY = 'sk-svcacct-" + "aA_-" * 25 + "'", True),
+    (".env.example", "OPENAI_API_KEY=sk-proj-" + "aA_-" * 25, False),
+    ("README.md", "키는 sk-proj-... 형식입니다", False),
     ("a.py", "KEY = 'sk-ant-api03-" + "x" * 30 + "'", True),
     ("a.py", "t = 'ghp_" + "a" * 36 + "'", True),
     ("a.py", "k = 'AKIA" + "A" * 16 + "'", True),

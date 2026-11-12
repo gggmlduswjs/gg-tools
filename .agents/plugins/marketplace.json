@@ -1,0 +1,10 @@
+{
+  "name": "gg-tools",
+  "interface": {"displayName": "GG Tools"},
+  "plugins": [{
+    "name": "gg-skills",
+    "source": {"source": "local", "path": "./gg-skills"},
+    "policy": {"installation": "AVAILABLE", "authentication": "ON_INSTALL"},
+    "category": "Productivity"
+  }]
+}

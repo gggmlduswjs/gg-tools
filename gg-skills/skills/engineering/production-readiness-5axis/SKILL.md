@@ -26,12 +26,14 @@ description: 레포를 프로덕션 준비 5축(성능·보안·데이터 안전
 먼저 프로젝트 안의 자산을 읽는다. 없으면 없다고 표시한다.
 
 ```bash
-ls .claude/skills .claude/commands .claude/hooks 2>/dev/null
+ls .agents/skills .codex .claude/skills .claude/commands .claude/hooks 2>/dev/null
 cat .claude/settings.json 2>/dev/null
 cat .mcp.json 2>/dev/null
 ls .github/workflows 2>/dev/null
 ls .dev/harness/evals 2>/dev/null
 ```
+
+위 shell 예시는 현재 환경에 맞게 실행한다. Codex에서는 설치된 스킬 목록과 프로젝트 `AGENTS.md`·`CLAUDE.md`를 읽는다. `.claude/settings.json`은 Claude 설정이며 Codex의 권한·hook 활성화 증거가 아니다. 설정 파일은 필요한 항목만 확인하고 키·토큰 값을 출력하지 않는다.
 
 읽을 문서:
 

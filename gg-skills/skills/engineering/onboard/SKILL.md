@@ -1,6 +1,6 @@
 ---
 name: onboard
-description: 새 PC나 새 프로젝트에서 개발 환경이 준비됐는지 한 번에 점검하고 빠진 것을 안내한다. PC 도구(git·gh·claude·python), gg-tools 플러그인, 위험 명령 차단 엔진, 프로젝트 틀(CLAUDE.md·docs/PRD.md), 위키(ingest 대기), GitHub 저장소 접근을 대상 목록(sources.yaml) 기준으로 확인한다. "온보딩", "onboard", "새 PC 세팅 확인", "환경 점검", "프로젝트 시작 준비됐어?" 같은 요청에 쓴다.
+description: 새 PC나 새 프로젝트의 Claude/Codex 개발 환경, 플러그인, 위험 명령 차단 엔진, 프로젝트 틀, 위키와 GitHub 접근을 읽기 전용으로 점검한다. "온보딩", "onboard", "새 PC 세팅 확인", "환경 점검", "프로젝트 시작 준비됐어?" 같은 요청에 쓴다.
 ---
 
 # onboard — 개발 환경 온보딩 점검
@@ -14,6 +14,8 @@ description: 새 PC나 새 프로젝트에서 개발 환경이 준비됐는지 �
 - `references/adopt-playbook.md`·`references/decision-questionnaire.md` — 기존 프로젝트 도입 절차와 결정 질문서(아래 4-4)
 
 ## 절차
+
+**Codex에서 실행:** 아래 점검 명령에 `--runtime codex`를 붙인다. 대상 목록은 `$CODEX_HOME/onboard/sources.yaml`(미설정 시 `~/.codex/onboard/sources.yaml`)을 우선하고, 기존 `~/.claude/onboard/sources.yaml`이 있으면 재사용한다. 목록을 새로 쓰는 경우 Codex 위치를 사용한다. Claude 설치나 외부 bootstrap 플러그인 목록은 Codex 필수 조건이 아니다. Codex 설치 안내는 gg-tools의 `bootstrap-codex.ps1` 또는 `codex plugin add gg-skills@gg-tools`를 사용한다. 공용 엔진은 설치된 이 스킬의 패키지에서 찾아 검증한다. `--catalog`·`--adopt`의 `.claude` 항목은 Claude 설정 현황이므로 Codex hook 활성화 증거로 사용하지 않는다.
 
 1. **점검 실행.** 이 스킬의 base directory에서:
    ```

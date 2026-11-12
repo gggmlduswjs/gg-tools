@@ -1,5 +1,7 @@
 # gg-skills skills
 
+Codex에서도 같은 13개 원본을 등록한다. [Codex 설치·사용 안내](../../docs/CODEX.md)를 따른다. 보관 스킬은 양쪽 모두 제외하며 Codex의 `project-review`는 기존 review command를 읽는 별도 진입점이다.
+
 `gg-skills` plugin에 포함되는 핵심 스킬 목록이다. 이 폴더는 plugin package의 정본이며, 설치는 루트 README의 `/plugin marketplace add` + `/plugin install gg-skills@gg-tools` 흐름을 따른다.
 
 이 plugin은 더 이상 디자인, 강의 변환, 회의록, 하네스 실행기, 로컬 PC 배선을 싣지 않는다. 프로젝트별 secret, MCP 인증, 운영 DB project ref는 plugin에 넣지 않고 각 repo/local 설정에 둔다.

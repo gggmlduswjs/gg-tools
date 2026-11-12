@@ -1,0 +1,25 @@
+{
+  "name": "gg-skills",
+  "version": "0.1.0",
+  "description": "공용 전문 스킬: 현대화, 온보딩, 진단, 보안, 성능, 제품 명세와 위키. Claude와 같은 원본을 사용한다.",
+  "author": {"name": "gggmlduswjs", "url": "https://github.com/gggmlduswjs"},
+  "repository": "https://github.com/gggmlduswjs/gg-tools",
+  "skills": [
+    "./skills/engineering/ask-gg",
+    "./skills/engineering/onboard",
+    "./skills/engineering/existing-system-modernization",
+    "./skills/engineering/lighthouse-performance-loop",
+    "./skills/engineering/observability-posthog-seo",
+    "./skills/engineering/owasp-security-scan",
+    "./skills/engineering/product-spec-kit",
+    "./skills/engineering/production-readiness-5axis",
+    "./skills/engineering/supabase-db-advisor-readonly",
+    "./skills/diagnostics/harness-eval",
+    "./skills/second-brain/wiki-ingest",
+    "./skills/second-brain/wiki-query",
+    "./skills/second-brain/wiki-lint",
+    "./codex-skills/project-review"
+  ],
+  "hooks": "./hooks/codex-hooks.json",
+  "interface": {"displayName": "GG Skills", "shortDescription": "공용 개발·위키 전문 스킬", "category": "Productivity"}
+}

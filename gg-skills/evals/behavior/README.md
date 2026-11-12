@@ -49,6 +49,19 @@ EVAL_REPO=… EVAL_REVIEWER_SYSTEM=prompts/reviewer-system.degraded.md \
 
 ## 설정
 
+Claude 없이 실행하려면 `EVAL_PROVIDER=openai`, `OPENAI_API_KEY`, `EVAL_SUBJECT_MODEL`, `EVAL_JUDGE_MODEL`을 지정한다. OpenAI 모델은 기본값 없이 서로 다른 두 모델을 명시한다. OpenAI에서는 temperature를 기본 전송하지 않는다. 기존 Anthropic 기본값은 유지한다. Codex 구독 인증은 API 키를 대신하지 않으며 live eval은 별도 비용과 외부 전송이 발생한다. 이 실행기는 실제 CLI 세션/도구를 실행하는 테스트가 아니다.
+
+```powershell
+$env:EVAL_PROVIDER = 'openai'
+$env:EVAL_REPO = '<대상 프로젝트>'
+$env:EVAL_SUBJECT_MODEL = '<피험자 모델 ID>'
+$env:EVAL_JUDGE_MODEL = '<다른 채점자 모델 ID>'
+# OPENAI_API_KEY는 개인 환경변수나 대상 레포의 무시된 .env에서 설정한다.
+npm run eval
+```
+
+`npm test -- --exclude test/goldenset.test.ts`는 공용 unit/mock 검사만 실행한다. 전체 `npm test`는 대상 프로젝트의 실제 golden set이 필요하다. 제외한 검사는 실제 프로젝트 데이터 검증으로 보고하지 않는다.
+
 **어디서 읽나:** 셸 환경변수 → 없으면 **대상 레포의 `.env`**(`src/env.ts`). 환경변수가 이긴다.
 
 ⚠️★★★ 워크트리에서 돌리면 **그 워크트리의 `.env`** 를 본다. `wt.ps1` 이 만들 때 뜬 **사본**이라

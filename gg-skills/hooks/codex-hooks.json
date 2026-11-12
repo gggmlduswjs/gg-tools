@@ -1,0 +1,8 @@
+{
+  "hooks": {
+    "PreToolUse": [{
+      "matcher": "Bash|apply_patch|Edit|Write",
+      "hooks": [{"type": "command", "command": "python \"${PLUGIN_ROOT}/hooks/codex_adapter.py\"", "timeout": 10}]
+    }]
+  }
+}
